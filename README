@@ -19,6 +19,19 @@
   vs1063      https://github.com/rodan/vs1063
   IRremote    http://www.arcfn.com/2009/08/multi-protocol-infrared-remote-library.html
 
+  Usage:
+   - an RC5 remote control provides the control (a Vishay TSOP IR receiver output goes to avr.D2).
+   - by default music files are played randomly. the REW button from the remote switches to album mode
+
+  Known problems and limitations:
+   - you should format the SDcard as Fat32 with 64k clusters
+   - only place music files on the card, no check are being performed before sending data to the VS chip
+   - no special chars must be used in the filesystem entries, only ascii alphanumeric chars
+   - there is a hardcoded MAX_PATH that only allows about 4 parent dirs to any music file
+
+   Tested with:
+   - 16G Class 10 Adata card, with ogg files over the 4G barrier
+
 
   Author:          Petre Rodan <petre.rodan@simplex.ro>
   Available from:  https://github.com/rodan/playa

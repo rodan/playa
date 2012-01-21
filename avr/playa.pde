@@ -36,7 +36,7 @@ char album_path[MAX_PATH];
 IRrecv irrecv(PIN_IR);
 decode_results results;
 unsigned long result_last = 4294967295UL;       // -1
-unsigned int ir_delay = 800;    // delay between repeated button presses
+unsigned int ir_delay = 2000;    // delay between repeated button presses
 unsigned long ir_delay_prev = 0;
 uint8_t ir_cmd;
 uint8_t play_mode = PLAY_RANDOM;
