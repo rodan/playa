@@ -5,7 +5,7 @@
    - microSD (SDHC) is the storage medium. so fat32 and cards bigger than 4G should be supported.
 
 
-  there are 3 components in this repository:
+  there are 2 components in this repository:
   avr       - contains the Arduino code for the microcontroller
   hardware  - open source hardware for the main board (still in rough sketch form)
 
