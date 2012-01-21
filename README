@@ -1,14 +1,17 @@
  This project should end up with the following feature set:
 
-   - a smallish and spartan music player that can work for weeks between charges.
-   - decoding ogg files is a must.
-   - microSD (SDHC) is the storage medium. so fat32 and cards bigger than 4G should be supported.
+   - a smallish and spartan music player that can work for weeks between charges
+   - a 2Ah Li-poly cell and an integrated charger - 5V input
+   - decoding ogg files is a must
+   - microSD (SDHC) is the storage medium. so fat32 and cards bigger than 4G should be supported
 
 
   there are 2 components in this repository:
   avr       - contains the Arduino code for the microcontroller
   hardware  - open source hardware for the main board (still in rough sketch form)
+				the schematic is based on VLSI's Simple DSP Evaluation Board [1]
 
+	[1]  http://www.vlsi.fi/en/support/evaluationboards/vs1053vs8053simpledspboard.html
 
   Library dependencies for the avr code:
 
