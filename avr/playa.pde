@@ -23,7 +23,7 @@
 
 // vs1063
 uint8_t cbuff[CARD_BUFF_SZ];
-uint8_t volume = 34; // as negative attenuation. can go from 0x00 lound - 0xff silent
+uint8_t volume = 40; // as negative attenuation. can go from 0x00 lound - 0xff silent
 
 // sdfat
 SdFat sd;
@@ -332,8 +332,11 @@ uint8_t play_file()
                         // if ogg, read the replaygain offset
                         replaygain_offset = vs_read_wramaddr(ogg_gain_offset);
                         if ( replaygain_offset < 10 && replaygain_offset > -30 ) {
-                            replaygain_volume = replaygain_offset + 12 + volume;
+                            replaygain_volume = volume - ( replaygain_offset + 12 );
                             vs_set_volume(replaygain_volume, replaygain_volume);
+                            Serial.println(volume);
+                            Serial.println(replaygain_offset);
+                            Serial.println(replaygain_volume);
                         }
                     }
                     checked = true;
