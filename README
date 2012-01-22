@@ -25,7 +25,6 @@
 
   Known problems and limitations:
    - you should format the SDcard as Fat32 with 64k clusters
-   - only place music files on the card, no check are being performed before sending data to the VS chip
    - no special chars must be used in the filesystem entries, only ascii alphanumeric chars
    - there is a hardcoded MAX_PATH that only allows about 4 parent dirs to any music file
 

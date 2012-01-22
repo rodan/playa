@@ -5,12 +5,12 @@
 #include <IRremote.h>
 #include "playa.h"
 
-#define PIN_IR          2     // digital pin for the IR remote
-#define PIN_CARD_CS     10    // digital pin for uSD card chip select
+#define PIN_IR          2       // digital pin for the IR remote
+#define PIN_CARD_CS     10      // digital pin for uSD card chip select
 
-#define CARD_BUFF_SZ    384   // how much data to read from the uSD card in one go
-#define VS_BUFF_SZ      32    // how much data to send in one batch to VS1063
-#define MAX_PATH        40    // enough for 4*dirs / file
+#define CARD_BUFF_SZ    512     // how much data to read from the uSD card in one go
+#define VS_BUFF_SZ      32      // how much data to send in one batch to VS1063
+#define MAX_PATH        40      // enough for 4 parent dirs for one file
 
 #define CMD_NULL        0x00
 #define CMD_EXIT        0x01
@@ -23,7 +23,7 @@
 
 // vs1063
 uint8_t cbuff[CARD_BUFF_SZ];
-uint8_t volume = 35;            // 0x00 loud - 0xFF silent
+uint8_t volume = 34; // as negative attenuation. can go from 0x00 lound - 0xff silent
 
 // sdfat
 SdFat sd;
@@ -36,7 +36,7 @@ char album_path[MAX_PATH];
 IRrecv irrecv(PIN_IR);
 decode_results results;
 unsigned long result_last = 4294967295UL;       // -1
-unsigned int ir_delay = 2000;    // delay between repeated button presses
+unsigned int ir_delay = 2000;   // delay between repeated button presses
 unsigned long ir_delay_prev = 0;
 uint8_t ir_cmd;
 uint8_t play_mode = PLAY_RANDOM;
@@ -49,7 +49,7 @@ void setup()
     Serial.begin(9600);
     uint8_t i;
 
-    vs_setup();
+    delay(1000);                // switch debounce
 
     SPI.begin();
     SPI.setBitOrder(MSBFIRST);
@@ -57,6 +57,7 @@ void setup()
     //max SDI clock freq = CLKI/7 and (datasheet) CLKI = 36.864, hence max clock = 5MHz
     //SPI clock arduino = 16MHz. 16/ 4 = 4MHz -- ok!
 
+    vs_setup();
     vs_setup_local();
 
     for (i = 0; i < 32; i++) {
@@ -79,7 +80,7 @@ void loop()
         break;
     case PLAY_RANDOM:
         sd.chdir("/");
-        memset(file_path,0,MAX_PATH);
+        memset(file_path, 0, MAX_PATH);
         file_find_random();
         break;
     case PLAY_ALBUM:
@@ -98,20 +99,20 @@ void loop()
 void vs_setup_local()
 {
     //initialize chip 
-    vs_DeselectControl();
-    vs_DeselectData();
-    vs_SetVolume(0xff, 0xff);   //Declick: Immediately switch analog off
-    // Declick: Slow sample rate for slow analog part startup 
-    vs_WriteRegister(SPI_AUDATA, 0, 10);        // 10 Hz
-    delay(100);
+    vs_deselect_control();
+    vs_deselect_data();
+    vs_set_volume(0xfe, 0xfe);
+    //AVDD is at least 3.3v, so select 1.65V reference to increase 
+    //the analog output swing
+    vs_write_register(SCI_STATUS, SS_REFERENCE_SEL);
+    // Declick: Slow sample rate for slow analog part startup
+    vs_write_register(SCI_AUDATA, 0, 10);       // 10 Hz
+    //delay(100);
     // Switch on the analog parts
-    vs_SetVolume(0xfe, 0xfe);
-    vs_WriteRegister(SPI_AUDATA, 31, 64);       // 8kHz
-    vs_wait(); // XXX
-    vs_SetVolume(volume, volume);       // Set initial volume (20 = -10dB)
-    vs_SoftReset();
+    vs_write_register(SCI_AUDATA, 31, 64);      // 8kHz
+    vs_set_volume(volume, volume);
+    vs_soft_reset();
 }
-
 
 void ir_decode()
 {
@@ -202,24 +203,23 @@ void ir_decode()
             break;
 */
         case 13:               // mute
-            vs_SetVolume(0xfe, 0xfe);
+            vs_set_volume(0xfe, 0xfe);
             break;
         case 16:               // vol+
             if (volume > 3) {
-                volume -= 4;
-                vs_SetVolume(volume, volume);
+                volume -= 4; // decrease attenuation by 2dB
+                vs_set_volume(volume, volume);
             }
             break;
         case 17:               // vol-
-            if (volume < 252) {
-                volume += 4;
-                if (volume == 0xff)
-                    volume = 0xfe;      // 0xff has noise generated from the SPI
-                vs_SetVolume(volume, volume);
+            if (volume < 251) {
+                volume += 4; // increase attenuation by 2dB
+                vs_set_volume(volume, volume);
             }
             break;
         case 28:               // ch+
             ir_cmd = CMD_EXIT;
+            vs_write_register(SCI_MODE, SM_CANCEL);
             break;
 /*        case 29: // ch-
             break;
@@ -227,6 +227,10 @@ void ir_decode()
             break;
 */
         case 54:               // stop
+            vs_write_register(SCI_MODE, SM_CANCEL);
+            // to minimize the power-off transient
+            vs_set_volume(0xfe, 0xfe);
+            delay(10);
             vs_assert_xreset();
             play_mode = STOP;
             ir_cmd = CMD_EXIT;
@@ -234,12 +238,9 @@ void ir_decode()
         case 14:               // play
             if (play_mode == STOP) {
                 vs_deassert_xreset();
-                delay(100);
                 vs_wait();
                 vs_setup_local();
-                delay(100);
-                vs_wait();
-                vs_SetVolume(volume, volume);
+                vs_set_volume(volume, volume);
             }
             play_mode = PLAY_RANDOM;
             break;
@@ -276,15 +277,20 @@ void get_album_path()
             l = i;
     }
     strncpy(album_path, file_path, l);
-    album_path[l] = 0; // album_path[] and file_pathp[] have the same size
-                       // so there is no buffer overflow here
+    album_path[l] = 0;          // album_path[] and file_pathp[] have the same size
+    // so there is no buffer overflow here
 }
 
 uint8_t play_file()
 {
     uint16_t i, r, vs_buff_end;
+    uint8_t count = 0;
+    uint8_t checked = false;
+    uint16_t codec = 0x0eaa;    // something unused
+    int16_t replaygain_offset = 0;
+    uint8_t replaygain_volume;
 
-    vs_SoftReset();
+    vs_soft_reset();
 
     Serial.println(file_path);
 
@@ -293,21 +299,47 @@ uint8_t play_file()
     }
 
     while ((r = file.read(cbuff, CARD_BUFF_SZ))) {
+        if (!checked)
+            count++;
+        if (!checked && count > 10) {
+            vs_deselect_data();
+            // sometimes the decoder never gets busy while reading non-music data
+            // so we exit here
+            if ( vs_read_register(SCI_HDAT1) == 0 ) {
+                file.close();
+                vs_write_register(SCI_MODE, SM_CANCEL);
+                return 1;
+            }
+        }
+        vs_select_data();
         i = 0;
-        vs_SelectData();
         while (i < r) {
             while (!digitalRead(VS_DREQ)) {
-                vs_DeselectData();      // Release the SDI bus
+                // the VS chip is busy, so do something else
+                vs_deselect_data();     // Release the SDI bus
                 ir_decode();
-                    if (ir_cmd == CMD_EXIT) {
-                        file.close();
-                        ir_cmd = CMD_NULL;
-                        return 0;
-                        break;
+                if (ir_cmd == CMD_EXIT || codec == 0) {
+                    file.close();
+                    ir_cmd = CMD_NULL;
+                    vs_write_register(SCI_MODE, SM_CANCEL);
+                    return 0;
+                }
+                if (!checked && count > 1) {
+                    vs_deselect_data();
+                    // do a one-time check of the codec status
+                    codec = vs_read_register(SCI_HDAT1);
+                    if (codec == 0x4f67) {
+                        // if ogg, read the replaygain offset
+                        replaygain_offset = vs_read_wramaddr(ogg_gain_offset);
+                        if ( replaygain_offset < 10 && replaygain_offset > -30 ) {
+                            replaygain_volume = replaygain_offset + 12 + volume;
+                            vs_set_volume(replaygain_volume, replaygain_volume);
+                        }
                     }
-                //vs_wait();      // Wait until SPI transfer is completed
-                vs_SelectData();        // Pull XDCS low
-            }
+                    checked = true;
+                }
+                vs_select_data();       // Pull XDCS low
+            } // the mint rubbing function
 
             vs_buff_end = i + VS_BUFF_SZ - 1;
             if (vs_buff_end > r - 1) {
@@ -315,15 +347,15 @@ uint8_t play_file()
             }
             // send up to 32bytes after a VS_DREQ check
             while (i <= vs_buff_end) {
-                SPIPutChar(cbuff[i]);   // Send SPI byte
+                SPI.transfer(cbuff[i]); // Send SPI byte
                 i++;
             }
         }
         vs_wait();
-        vs_DeselectData();
+        vs_deselect_data();
     }
 
-    //vs_WriteRegister(SPI_MODE, 0, SM_OUTOFWAV);
+    vs_write_register(SCI_MODE, SM_CANCEL);
     //SendZerosToVS10xx();
 
     file.close();
@@ -387,5 +419,3 @@ uint8_t file_find_random()
     }
     return 0;
 }
-
-
