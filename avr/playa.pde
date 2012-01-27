@@ -29,6 +29,7 @@ uint8_t volume = 40; // as negative attenuation. can go from 0x00 lound - 0xff s
 SdFat sd;
 SdFile file;
 char fs_entity[13];
+uint8_t path_level;
 char file_path[MAX_PATH];
 char album_path[MAX_PATH];
 
@@ -40,6 +41,8 @@ unsigned int ir_delay = 2000;   // delay between repeated button presses
 unsigned long ir_delay_prev = 0;
 uint8_t ir_cmd;
 uint8_t play_mode = PLAY_RANDOM;
+uint8_t mute = false;
+uint16_t in_number = 0;
 
 // misc
 uint16_t seed;
@@ -79,6 +82,7 @@ void loop()
     case STOP:
         break;
     case PLAY_RANDOM:
+        path_level = 0;
         sd.chdir("/");
         memset(file_path, 0, MAX_PATH);
         file_find_random();
@@ -101,7 +105,7 @@ void vs_setup_local()
     //initialize chip 
     vs_deselect_control();
     vs_deselect_data();
-    vs_set_volume(0xfe, 0xfe);
+    vs_set_volume(0xff, 0xff);
     //AVDD is at least 3.3v, so select 1.65V reference to increase 
     //the analog output swing
     vs_write_register(SCI_STATUS, SS_REFERENCE_SEL);
@@ -110,13 +114,15 @@ void vs_setup_local()
     //delay(100);
     // Switch on the analog parts
     vs_write_register(SCI_AUDATA, 31, 64);      // 8kHz
-    vs_set_volume(volume, volume);
     vs_soft_reset();
+    vs_set_volume(volume, volume);
 }
 
 void ir_decode()
 {
     unsigned long now;
+    int8_t ir_number = -1;
+
     now = millis();
 
     if (irrecv.decode(&results)) {
@@ -129,7 +135,7 @@ void ir_decode()
         }
 
         switch (results.value) {
-/*      // RC5 codes
+        // RC5 codes
         case 1: // 1
             ir_number = 1;
             break;
@@ -160,12 +166,14 @@ void ir_decode()
         case 0: // 0
             ir_number = 0;
             break;
-        case 10: // 10
+/*        case 10: // 10
             ir_number = 10;
             break;
-        case 56:               // AV
+*/
+        case 56: // AV
+            in_number = 0;
             break;
-        case 36: // red
+/*        case 36: // red
           break;
         case 35: // green
           break;
@@ -203,15 +211,18 @@ void ir_decode()
             break;
 */
         case 13:               // mute
+            mute = true;
             vs_set_volume(0xfe, 0xfe);
             break;
         case 16:               // vol+
+            mute = false;
             if (volume > 3) {
                 volume -= 4; // decrease attenuation by 2dB
                 vs_set_volume(volume, volume);
             }
             break;
         case 17:               // vol-
+            mute = false;
             if (volume < 251) {
                 volume += 4; // increase attenuation by 2dB
                 vs_set_volume(volume, volume);
@@ -237,6 +248,7 @@ void ir_decode()
             break;
         case 14:               // play
             if (play_mode == STOP) {
+                mute = false;
                 vs_deassert_xreset();
                 vs_wait();
                 vs_setup_local();
@@ -263,6 +275,12 @@ void ir_decode()
             result_last = results.value;
             ir_delay_prev = now;
         }
+
+        // get a number from the ir remote
+        if ( ir_number > -1 ) {
+            in_number = in_number * 10 + ir_number;
+        }
+
         irrecv.resume();        // Receive the next keypress
     }
 
@@ -293,6 +311,8 @@ uint8_t play_file()
     vs_soft_reset();
 
     Serial.println(file_path);
+    //Serial.println(path_level);
+    //Serial.println(in_number);
 
     if (!file.open(file_path, O_READ)) {
         sd.errorHalt("open failed");
@@ -333,10 +353,12 @@ uint8_t play_file()
                         replaygain_offset = vs_read_wramaddr(ogg_gain_offset);
                         if ( replaygain_offset < 10 && replaygain_offset > -30 ) {
                             replaygain_volume = volume - ( replaygain_offset + 12 );
-                            vs_set_volume(replaygain_volume, replaygain_volume);
-                            Serial.println(volume);
-                            Serial.println(replaygain_offset);
-                            Serial.println(replaygain_volume);
+                            if (!mute) {
+                                vs_set_volume(replaygain_volume, replaygain_volume);
+                            }
+                            //Serial.println(volume);
+                            //Serial.println(replaygain_offset);
+                            //Serial.println(replaygain_volume);
                         }
                     }
                     checked = true;
@@ -400,9 +422,18 @@ uint8_t file_find_random()
     if (i == 0)
         return 1;
 
-    // pick one at random, then either play it if it's a file
-    // or cd into it and repeat until a file is found
-    rnd = random(1, i + 1);
+    if (path_level == 0) {
+        if (in_number == 0) {
+            // pick one at random, then either play it if it's a file
+            // or cd into it and repeat until a file is found
+            rnd = random(1, i + 1);
+        } else {
+            rnd = (in_number % i) + 1;
+        }
+    } else {
+        rnd = random(1, i + 1);
+    }
+
     sd.vwd()->rewind();
 
     for (i = 1; i <= rnd; i++) {
@@ -418,7 +449,9 @@ uint8_t file_find_random()
         play_file();
         return 0;
     } else {
-        file_find_random();
+        path_level++;
+        if (path_level < 5 )
+            file_find_random();
     }
     return 0;
 }
