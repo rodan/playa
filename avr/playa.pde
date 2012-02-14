@@ -8,6 +8,8 @@
 #define PIN_IR          2       // digital pin for the IR remote
 #define PIN_CARD_CS     10      // digital pin for uSD card chip select
 
+#define PIN_RANDOM      6       // analog pin used to seed the pseudo RNG
+
 #define CARD_BUFF_SZ    512     // how much data to read from the uSD card in one go
 #define VS_BUFF_SZ      32      // how much data to send in one batch to VS1063
 #define MAX_PATH        40      // enough for 4 parent dirs for one file
@@ -64,7 +66,7 @@ void setup()
     vs_setup_local();
 
     for (i = 0; i < 32; i++) {
-        seed += analogRead(3);
+        seed += analogRead(PIN_RANDOM);
     }
 
     irrecv.enableIRIn();
