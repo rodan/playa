@@ -8,10 +8,8 @@
 
   there are 2 components in this repository:
   avr       - contains the Arduino code for the microcontroller
-  hardware  - open source hardware for the main board (still in rough sketch form)
+  hardware  - open source hardware for the main board
 				the schematic is based on VLSI's Simple DSP Evaluation Board [1]
-
-	[1]  http://www.vlsi.fi/en/support/evaluationboards/vs1053vs8053simpledspboard.html
 
   Library dependencies for the avr code:
 
@@ -28,15 +26,19 @@
    - no special chars must be used in the filesystem entries, only ascii alphanumeric chars
    - there is a hardcoded MAX_PATH that only allows about 4 parent dirs to any music file
 
-   Tested with:
+  Tested with:
    - 16G Class 10 Adata card, with ogg files over the 4G barrier
 
 
-  Author:          Petre Rodan <petre.rodan@simplex.ro>
-  Available from:  https://github.com/rodan/playa
-  License:         GNU GPLv3
+  Author:            Petre Rodan <petre.rodan@simplex.ro>
+  Available from:    https://github.com/rodan/playa
+  Product pictures:  https://picasaweb.google.com/petre.rodan/Playa
+  License:           GNU GPLv3
 
-  GNU GPLv3 license:
+
+[1]  http://www.vlsi.fi/en/support/evaluationboards/vs1053vs8053simpledspboard.html
+
+ GNU GPLv3 license:
   
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
