@@ -1,0 +1,5 @@
+
+avrdude -C/etc/avrdude.conf -patmega328p -cstk500v2 -P/dev/ttyUSB0 -e -Ulfuse:w:0xff:m -Uhfuse:w:0xde:m -Uefuse:w:0x05:m -Ulock:w:0x3F:m
+
+avrdude -C/etc/avrdude.conf -patmega328p -cstk500v2 -P/dev/ttyUSB0 -V -D -Uflash:w:build/avr.hex:i
+

@@ -8,7 +8,10 @@
 #define PIN_IR          2       // digital pin for the IR remote
 #define PIN_CARD_CS     10      // digital pin for uSD card chip select
 
-#define PIN_RANDOM      6       // analog pin used to seed the pseudo RNG
+// analog pins
+#define PIN_JACK_DETECT A1      // detect if stereo jack is not connected
+#define PIN_VBAT_DETECT A5      // battery voltage readout
+#define PIN_RANDOM      A6      // read this unconnected pin and seed the pseudo RNG
 
 #define CARD_BUFF_SZ    512     // how much data to read from the uSD card in one go
 #define VS_BUFF_SZ      32      // how much data to send in one batch to VS1063
@@ -78,7 +81,18 @@ void setup()
 
 void loop()
 {
+    unsigned int vbat, jack_detect;
     ir_decode();
+
+    if ( play_mode != STOP ) {
+        vbat = analogRead(PIN_VBAT_DETECT);
+        jack_detect = analogRead(PIN_JACK_DETECT);
+        if ((vbat < 712) || (jack_detect > 200)) { 
+            // voltage below ~3.6v or stereo jack unused
+            vs_assert_xreset();
+            play_mode=STOP;
+        }
+    }
 
     switch (play_mode) {
     case STOP:
