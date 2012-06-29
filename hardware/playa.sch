@@ -19218,8 +19218,8 @@ Source: http://www.lumberg.com/Produkte/PDFs/KLBR4.pdf</description>
 <part name="GND27" library="SparkFun" deviceset="GND" device=""/>
 <part name="U$3" library="tsop" deviceset="TSOP312X" device=""/>
 <part name="C11" library="rcl" deviceset="C-EU" device="C1206" value="4.7u"/>
-<part name="R8" library="rcl" deviceset="R-EU_" device="R0805W" value="10M 1%"/>
-<part name="R19" library="rcl" deviceset="R-EU_" device="R0805W" value="2M 1%"/>
+<part name="R8" library="rcl" deviceset="R-EU_" device="R0805W" value="39k 1%"/>
+<part name="R19" library="rcl" deviceset="R-EU_" device="R0805W" value="68k 1%"/>
 <part name="GND28" library="SparkFun" deviceset="GND" device=""/>
 <part name="C17" library="rcl" deviceset="C-EU" device="C0805" value="100nF"/>
 <part name="GND31" library="SparkFun" deviceset="GND" device=""/>
