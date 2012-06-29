@@ -11,7 +11,7 @@
 // analog pins
 #define PIN_JACK_DETECT A1      // detect if stereo jack is not connected
 #define PIN_VBAT_DETECT A5      // battery voltage readout
-#define PIN_RANDOM      A6      // read this unconnected pin and seed the pseudo RNG
+#define PIN_RANDOM      A6      // seed the pseudo RNG by reading this unconnected pin
 
 #define CARD_BUFF_SZ    512     // how much data to read from the uSD card in one go
 #define VS_BUFF_SZ      32      // how much data to send in one batch to VS1063
@@ -28,7 +28,8 @@
 
 // vs1063
 uint8_t cbuff[CARD_BUFF_SZ];
-uint8_t volume = 40; // as negative attenuation. can go from 0x00 lound - 0xff silent
+uint8_t volume = 40; // as negative attenuation. can go from 0x00 lound - 0xfe silent
+                     // 0xff is a special case (analog powerdown mode)
 
 // sdfat
 SdFat sd;
@@ -55,25 +56,17 @@ uint16_t seed;
 void setup()
 {
     Serial.begin(9600);
-    uint8_t i;
 
     delay(1000);                // switch debounce
 
     SPI.begin();
     SPI.setBitOrder(MSBFIRST);
     SPI.setDataMode(SPI_MODE0);
-    //max SDI clock freq = CLKI/7 and (datasheet) CLKI = 36.864, hence max clock = 5MHz
-    //SPI clock arduino = 16MHz. 16/ 4 = 4MHz -- ok!
 
     vs_setup();
     vs_setup_local();
 
-    for (i = 0; i < 32; i++) {
-        seed += analogRead(PIN_RANDOM);
-    }
-
     irrecv.enableIRIn();
-    randomSeed(seed);
 
     if (!sd.init(SPI_FULL_SPEED, PIN_CARD_CS))
         sd.initErrorHalt();
@@ -83,12 +76,37 @@ void loop()
 {
     unsigned int vbat, jack_detect;
     ir_decode();
+    uint8_t i;
 
     if ( play_mode != STOP ) {
+
+        // jack_detect is zero if a stereo jack is physically plugged in. 
+        // otherwise the common voltage for the earphones (aka GBUF) is read (1.65v)
+        //
+        // vbat's value is (1024/Vref)*Vbattery*R2/(R1+R2), where
+        //    Vref     - ADC voltage reference - 3.3v
+        //    Vbattery - actual battery voltage (should be between 3 and 4.2v)
+        //    R2       - 68Kohm
+        //    R1       - 39Kohm
+        // we try to limit current consumption when the Lipo cell reaches about 3.6v.
+        // Note:
+        //   this formula is usable only when Vref is actually 3.3v. 
+        //   in case the cell voltage is below ~3.5v, vbat is not read correctly
+        //   and the only thing protecting the cell is the internal cutoff
+
         vbat = analogRead(PIN_VBAT_DETECT);
         jack_detect = analogRead(PIN_JACK_DETECT);
-        if ((vbat < 712) || (jack_detect > 200)) { 
-            // voltage below ~3.6v or stereo jack unused
+
+        // attempt to gather some entropy from the outside
+        // sometimes PIN_RANDOM gives the same values, so keep and increment seed between runs
+        seed += millis();
+        for (i = 0; i < vbat/10; i++) {
+            seed += analogRead(PIN_RANDOM);
+        }
+        randomSeed(seed);
+
+        if ((vbat < 712) || (jack_detect > 0)) { 
+            // shut down vs1063 to protect the Lipo cell
             vs_assert_xreset();
             play_mode=STOP;
         }
@@ -122,7 +140,7 @@ void vs_setup_local()
     vs_deselect_control();
     vs_deselect_data();
     vs_set_volume(0xff, 0xff);
-    //AVDD is at least 3.3v, so select 1.65V reference to increase 
+    //AVDD is at least 3.3v, so select 1.65v reference to increase 
     //the analog output swing
     vs_write_register(SCI_STATUS, SS_REFERENCE_SEL);
     // Declick: Slow sample rate for slow analog part startup
@@ -143,8 +161,8 @@ void ir_decode()
 
     if (irrecv.decode(&results)) {
 
-        if (results.value >= 2048)
-            results.value -= 2048;
+        //if (results.value >= 2048)
+        //    results.value -= 2048;
 
         if (result_last == results.value && now - ir_delay_prev < ir_delay) {
             results.value = 11111;
@@ -226,25 +244,25 @@ void ir_decode()
         case 18: // menu
             break;
 */
-        case 13:               // mute
+        case 13: case 0x290:   // mute
             mute = true;
             vs_set_volume(0xfe, 0xfe);
             break;
-        case 16:               // vol+
+        case 16: case 0x490:   // vol+
             mute = false;
             if (volume > 3) {
                 volume -= 4; // decrease attenuation by 2dB
                 vs_set_volume(volume, volume);
             }
             break;
-        case 17:               // vol-
+        case 17: case 0xc90:   // vol-
             mute = false;
             if (volume < 251) {
                 volume += 4; // increase attenuation by 2dB
                 vs_set_volume(volume, volume);
             }
             break;
-        case 28:               // ch+
+        case 28: case 0x90:    // ch+
             ir_cmd = CMD_EXIT;
             vs_write_register(SCI_MODE, SM_CANCEL);
             break;
@@ -253,7 +271,7 @@ void ir_decode()
         case 36:               // record
             break;
 */
-        case 54:               // stop
+        case 54: case 0xa90:   // stop
             vs_write_register(SCI_MODE, SM_CANCEL);
             // to minimize the power-off transient
             vs_set_volume(0xfe, 0xfe);
@@ -275,8 +293,11 @@ void ir_decode()
 /*        case 31:               // pause
             break;
 */
-        case 35:               // rew
-            play_mode = SWITCH_TO_ALBUM;
+        case 35: case 0xa50:     // rew
+            if (play_mode == PLAY_RANDOM)
+                play_mode = SWITCH_TO_ALBUM;
+            if (play_mode == PLAY_ALBUM)
+                play_mode = PLAY_RANDOM;
             ir_cmd = CMD_EXIT;
             break;
 /*
@@ -287,7 +308,8 @@ void ir_decode()
 
         // vol+ and vol- should not care about ir_delay
         if (results.value != 11111 && results.value != 16
-            && results.value != 17) {
+            && results.value != 17 && results.value != 0xc90 &&
+            results.value != 0x490) {
             result_last = results.value;
             ir_delay_prev = now;
         }
