@@ -104,6 +104,9 @@ void loop()
             seed += analogRead(PIN_RANDOM);
         }
         randomSeed(seed);
+        for (i = 0; i < vbat/10; i++) {
+            random(); // apparently randomSeed does not provide proper randomness
+        }
 
         if ((vbat < 712) || (jack_detect > 0)) { 
             // shut down vs1063 to protect the Lipo cell
@@ -266,8 +269,12 @@ void ir_decode()
             ir_cmd = CMD_EXIT;
             vs_write_register(SCI_MODE, SM_CANCEL);
             break;
-/*        case 29: // ch-
+        case 29: case 0x890:   // ch-
+            in_number++;
+            ir_cmd = CMD_EXIT;
+            vs_write_register(SCI_MODE, SM_CANCEL);
             break;
+/*
         case 36:               // record
             break;
 */
@@ -293,11 +300,15 @@ void ir_decode()
 /*        case 31:               // pause
             break;
 */
-        case 35: case 0xa50:     // rew
-            if (play_mode == PLAY_RANDOM)
-                play_mode = SWITCH_TO_ALBUM;
-            if (play_mode == PLAY_ALBUM)
-                play_mode = PLAY_RANDOM;
+        case 35: case 0xa50:     // rew, AV/TV
+            if ( in_number != 0 ) {
+                in_number = 0;
+            } else {
+                if (play_mode == PLAY_RANDOM)
+                    play_mode = SWITCH_TO_ALBUM;
+                if (play_mode == PLAY_ALBUM)
+                    play_mode = PLAY_RANDOM;
+            }
             ir_cmd = CMD_EXIT;
             break;
 /*
@@ -348,9 +359,7 @@ uint8_t play_file()
 
     vs_soft_reset();
 
-    Serial.println(file_path);
-    //Serial.println(path_level);
-    //Serial.println(in_number);
+    //Serial.println(file_path);
 
     if (!file.open(file_path, O_READ)) {
         sd.errorHalt("open failed");
@@ -449,27 +458,27 @@ uint8_t file_find_next()
 
 uint8_t file_find_random()
 {
-    uint16_t i = 0, rnd;
+    uint16_t i = 0, items = 0, rnd;
 
     // how many items in the current dir?
     while (file.openNext(sd.vwd(), O_READ)) {
-        i++;
+        items++;
         file.close();
     }
 
-    if (i == 0)
+    if (items == 0)
         return 1;
 
     if (path_level == 0) {
         if (in_number == 0) {
             // pick one at random, then either play it if it's a file
             // or cd into it and repeat until a file is found
-            rnd = random(1, i + 1);
+            rnd = random(1, items + 1);
         } else {
-            rnd = (in_number % i) + 1;
+            rnd = (in_number % items) + 1;
         }
     } else {
-        rnd = random(1, i + 1);
+        rnd = random(1, items + 1);
     }
 
     sd.vwd()->rewind();
@@ -482,6 +491,19 @@ uint8_t file_find_random()
 
     strncat(file_path, "/", 2);
     strncat(file_path, fs_entity, 14);
+
+    Serial.print("path_level ");
+    Serial.print(path_level);
+    Serial.print(", num_dirs ");
+    Serial.print(items);
+    Serial.print(", seed ");
+    Serial.print(seed);
+    Serial.print(", rnd ");
+    Serial.print(rnd);
+    Serial.print(", in_num ");
+    Serial.print(in_number);
+    Serial.print(", path ");
+    Serial.println(file_path);
 
     if (!sd.chdir(fs_entity)) {
         play_file();
