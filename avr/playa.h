@@ -6,6 +6,7 @@ void vs_setup_local();
 uint8_t ir_decode();
 void env_check();
 void ui();
+void sleep_mgmt();
 void pwr_down();
 
 void get_album_path();

@@ -49,7 +49,6 @@ uint32_t result_last = 11111;
 uint16_t ir_delay = 2000;       // delay between repeated button presses
 uint32_t ir_delay_prev = 0;
 uint8_t ir_cmd;
-//uint8_t play_mode_prev;
 uint8_t play_mode = PLAY_RANDOM;
 uint8_t mute = false;
 uint16_t in_number = 0;
@@ -107,17 +106,7 @@ void loop()
     if (play_mode != STOP) {
         env_check();
     } else {
-        if (just_woken == 0) {
-            pwr_down();
-        } else if (just_woken == 1) {
-            if (wake_up_time == 0) {
-                wake_up_time = millis();
-            } else if (millis() - wake_up_time > wake_up_delay) {
-                // if an IR signal woke up the uC from sleep, but that signal was not 
-                // a power sequence then go back to sleep.
-                pwr_down();
-            }
-        }
+        sleep_mgmt();
     }
 
     ui();
@@ -134,7 +123,6 @@ void vs_setup_local()
     vs_write_register(SCI_STATUS, SS_REFERENCE_SEL);
     // Declick: Slow sample rate for slow analog part startup
     vs_write_register(SCI_AUDATA, 0, 10);       // 10 Hz
-    //delay(100);
     // Switch on the analog parts
     vs_write_register(SCI_AUDATA, 31, 64);      // 8kHz
     vs_soft_reset();
@@ -143,7 +131,7 @@ void vs_setup_local()
 
 uint8_t ir_decode()
 {
-    unsigned long now;
+    uint32_t now;
     int8_t ir_number = -1;
 
     now = millis();
@@ -205,7 +193,6 @@ uint8_t ir_decode()
             if (just_woken == 1) {
                 just_woken = 0;
                 wake_up_time = 0;
-                //play_mode = play_mode_prev;
                 play_mode = PLAY_RANDOM;
                 vs_deassert_xreset();
                 vs_setup();
@@ -292,23 +279,12 @@ uint8_t ir_decode()
             vs_set_volume(0xfe, 0xfe);
             delay(10);
             vs_assert_xreset();
-            //play_mode_prev = play_mode;
             play_mode = STOP;
             ir_cmd = CMD_EXIT;
             return 0;
             break;
-        case 14:               // play
-            /*
-               if (play_mode == STOP) {
-               mute = false;
-               vs_deassert_xreset();
-               vs_wait();
-               vs_setup_local();
-               vs_set_volume(volume, volume);
-               }
-             */
-            play_mode = PLAY_RANDOM;
-            break;
+//        case 14:               // play
+//            break;
 //        case 31:               // pause
 //            break;
         case 35:
@@ -383,7 +359,6 @@ void env_check()
     if ((vbat < 712) || (jack_detect > 0)) {
         // shut down vs1063 to protect the Lipo cell
         vs_assert_xreset();
-        //play_mode_prev = play_mode;
         play_mode = STOP;
     }
 }
@@ -596,6 +571,21 @@ uint8_t file_find_random()
             file_find_random();
     }
     return 0;
+}
+
+void sleep_mgmt()
+{
+    if (just_woken == 0) {
+        pwr_down();
+    } else if (just_woken == 1) {
+        if (wake_up_time == 0) {
+            wake_up_time = millis();
+        } else if (millis() - wake_up_time > wake_up_delay) {
+            // if an IR signal woke up the uC from sleep, but that signal was not 
+            // a power sequence then go back to sleep.
+            pwr_down();
+        }
+    }
 }
 
 // used when STOP command is issued
