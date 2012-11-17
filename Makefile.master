@@ -169,9 +169,9 @@ ifneq "$(strip $(LIB_C_SRC) $(LIB_CXX_SRC))" ""
 endif
 
 # Sketch PDE source.
-SKT_PDE_SRC = $(wildcard *.pde)
+SKT_PDE_SRC = $(wildcard *.ino)
 ifneq "$(strip $(SKT_PDE_SRC))" ""
-	SKT_PDE_OBJ = $(BUILD_DIR)/$(SKETCH)_pde.o
+	SKT_PDE_OBJ = $(BUILD_DIR)/$(SKETCH)_ino.o
 endif
 
 # C and C++ source.

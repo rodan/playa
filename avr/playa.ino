@@ -1,5 +1,8 @@
 
 #include <SPI.h>
+#include <avr/wdt.h>
+#include <avr/sleep.h>
+#include <avr/power.h>
 #include <vs1063.h>
 #include <SdFat.h>
 #include <IRremote.h>
@@ -42,22 +45,40 @@ char album_path[MAX_PATH];
 // infrared remote
 IRrecv irrecv(PIN_IR);
 decode_results results;
-unsigned long result_last = 4294967295UL;       // -1
+unsigned long result_last = 11111;
 unsigned int ir_delay = 2000;   // delay between repeated button presses
 unsigned long ir_delay_prev = 0;
 uint8_t ir_cmd;
+uint8_t play_mode_prev;
 uint8_t play_mode = PLAY_RANDOM;
 uint8_t mute = false;
 uint16_t in_number = 0;
 
 // misc
 uint16_t seed;
+uint8_t sleeping = 0, just_woken = 0;
+
+ISR(INT0_vect){
+    EIFR |= 0x1; // reset INTF0
+    if (sleeping) {
+        just_woken = 1;
+        sleeping = 0;
+    }
+}
 
 void setup()
 {
+
+#ifdef DEBUG
     Serial.begin(9600);
+#else
+    power_usart0_disable();
+#endif
+    power_twi_disable();
 
     delay(1000);                // switch debounce
+
+    wdt_enable(WDTO_8S);        // Enable watchdog: max 8 seconds
 
     SPI.begin();
     SPI.setBitOrder(MSBFIRST);
@@ -70,13 +91,16 @@ void setup()
 
     if (!sd.init(SPI_FULL_SPEED, PIN_CARD_CS))
         sd.initErrorHalt();
+
+
 }
 
 void loop()
 {
-    unsigned int vbat, jack_detect;
-    ir_decode();
+    uint16_t vbat, jack_detect;
     uint8_t i;
+    ir_decode();
+    wdt_reset();
 
     if ( play_mode != STOP ) {
 
@@ -111,8 +135,12 @@ void loop()
         if ((vbat < 712) || (jack_detect > 0)) { 
             // shut down vs1063 to protect the Lipo cell
             vs_assert_xreset();
-            play_mode=STOP;
+            play_mode_prev = play_mode;
+            play_mode = STOP;
         }
+    } else {
+        standby();
+        play_mode = play_mode_prev;
     }
 
     switch (play_mode) {
@@ -135,6 +163,7 @@ void loop()
         file_find_next();
         break;
     }
+
 }
 
 void vs_setup_local()
@@ -164,10 +193,10 @@ void ir_decode()
 
     if (irrecv.decode(&results)) {
 
-        //if (results.value >= 2048)
-        //    results.value -= 2048;
+        if ((results.decode_type == RC5) && (results.value >= 2048))
+            results.value -= 2048;
 
-        if (result_last == results.value && now - ir_delay_prev < ir_delay) {
+        if ((results.value == result_last) && (now - ir_delay_prev < ir_delay)) {
             results.value = 11111;
         }
 
@@ -203,10 +232,10 @@ void ir_decode()
         case 0: // 0
             ir_number = 0;
             break;
-/*        case 10: // 10
-            ir_number = 10;
-            break;
-*/
+//        case 10: // 10
+//            ir_number = 10;
+//            break;
+
         case 56: // AV
             in_number = 0;
             break;
@@ -274,16 +303,15 @@ void ir_decode()
             ir_cmd = CMD_EXIT;
             vs_write_register(SCI_MODE, SM_CANCEL);
             break;
-/*
-        case 36:               // record
-            break;
-*/
+//        case 36:               // record
+//            break;
         case 54: case 0xa90:   // stop
             vs_write_register(SCI_MODE, SM_CANCEL);
             // to minimize the power-off transient
             vs_set_volume(0xfe, 0xfe);
             delay(10);
             vs_assert_xreset();
+            play_mode_prev = play_mode;
             play_mode = STOP;
             ir_cmd = CMD_EXIT;
             break;
@@ -297,9 +325,8 @@ void ir_decode()
             }
             play_mode = PLAY_RANDOM;
             break;
-/*        case 31:               // pause
-            break;
-*/
+//        case 31:               // pause
+//            break;
         case 35: case 0xa50:     // rew, AV/TV
             if ( in_number != 0 ) {
                 in_number = 0;
@@ -311,16 +338,17 @@ void ir_decode()
             }
             ir_cmd = CMD_EXIT;
             break;
-/*
-        case : // fwd
-            break;
-*/
+//        case : // fwd
+//            break;
+//        default:
+//            Serial.println(results.value);
+//            break;
         }                       // case
 
         // vol+ and vol- should not care about ir_delay
-        if (results.value != 11111 && results.value != 16
-            && results.value != 17 && results.value != 0xc90 &&
-            results.value != 0x490) {
+        if ((results.value != 11111) && (results.value != 16)
+            && (results.value != 17) && (results.value != 0xc90) &&
+            (results.value != 0x490)) {
             result_last = results.value;
             ir_delay_prev = now;
         }
@@ -384,6 +412,7 @@ uint8_t play_file()
             while (!digitalRead(VS_DREQ)) {
                 // the VS chip is busy, so do something else
                 vs_deselect_data();     // Release the SDI bus
+                wdt_reset();
                 ir_decode();
                 if (ir_cmd == CMD_EXIT || codec == 0) {
                     file.close();
@@ -492,6 +521,7 @@ uint8_t file_find_random()
     strncat(file_path, "/", 2);
     strncat(file_path, fs_entity, 14);
 
+#ifdef DEBUG
     Serial.print("path_level ");
     Serial.print(path_level);
     Serial.print(", num_dirs ");
@@ -504,6 +534,7 @@ uint8_t file_find_random()
     Serial.print(in_number);
     Serial.print(", path ");
     Serial.println(file_path);
+#endif
 
     if (!sd.chdir(fs_entity)) {
         play_file();
@@ -515,3 +546,35 @@ uint8_t file_find_random()
     }
     return 0;
 }
+
+void standby() {
+
+    // wake up on remote control input (external INT0 interrupt)
+    EICRA = 0; //Interrupt on low level
+    EIMSK = (1<<INT0); // enable INT0 interrupt
+
+    vs_assert_xreset();
+    wdt_disable();
+    power_spi_disable();
+    sleeping = 1;
+
+    do {
+        set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+        cli();
+        sleep_enable();
+        sei();
+        sleep_cpu();
+        sleep_disable();
+        sei();
+    } while (0);
+
+    // wake up
+    EIMSK = 0; // disable INT0/1 interrupts
+    power_spi_enable();
+    vs_deassert_xreset();
+    vs_setup();
+    vs_setup_local();
+    wdt_enable(WDTO_8S);
+    delay(100);
+}
+
