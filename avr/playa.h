@@ -4,7 +4,7 @@
 
 void vs_setup_local();
 void ir_decode();
-void standby();
+void pwr_down();
 
 void get_album_path();
 uint8_t play_file();

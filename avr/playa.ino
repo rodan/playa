@@ -45,9 +45,9 @@ char album_path[MAX_PATH];
 // infrared remote
 IRrecv irrecv(PIN_IR);
 decode_results results;
-unsigned long result_last = 11111;
-unsigned int ir_delay = 2000;   // delay between repeated button presses
-unsigned long ir_delay_prev = 0;
+uint32_t result_last = 11111;
+uint16_t ir_delay = 2000;   // delay between repeated button presses
+uint32_t ir_delay_prev = 0;
 uint8_t ir_cmd;
 uint8_t play_mode_prev;
 uint8_t play_mode = PLAY_RANDOM;
@@ -56,7 +56,11 @@ uint16_t in_number = 0;
 
 // misc
 uint16_t seed;
-uint8_t sleeping = 0, just_woken = 0;
+
+// sleep states
+volatile uint8_t sleeping = 0, just_woken = 0;
+uint32_t wake_up_time = 0;      // systemtime when the uC was woken up
+uint16_t wake_up_delay = 2000;  // the delay until the uC is powered down again
 
 ISR(INT0_vect)
 {
@@ -70,14 +74,14 @@ ISR(INT0_vect)
 void setup()
 {
 
+    delay(1000);                // switch/jumper/ammeter debounce
+
 #ifdef DEBUG
     Serial.begin(9600);
 #else
     power_usart0_disable();
 #endif
     power_twi_disable();
-
-    delay(1000);                // switch debounce
 
     wdt_enable(WDTO_8S);        // Enable watchdog: max 8 seconds
 
@@ -98,9 +102,12 @@ void setup()
 void loop()
 {
     uint16_t vbat, jack_detect;
+    uint32_t now;
     uint8_t i;
     ir_decode();
     wdt_reset();
+
+    now = millis();
 
     if (play_mode != STOP) {
 
@@ -138,9 +145,15 @@ void loop()
             play_mode_prev = play_mode;
             play_mode = STOP;
         }
-    } else {
-        standby();
-        play_mode = play_mode_prev;
+    } else if (just_woken == 0) {
+        pwr_down();
+    } else if ((just_woken == 1) && (wake_up_time == 0)) {
+        wake_up_time = now;
+    } else if ((just_woken == 1) && (now - wake_up_time > wake_up_delay)) {
+        // if an IR signal woke up the uC from sleep, but that signal was not 
+        // a power sequence then go back to sleep.
+        wake_up_time = 0;
+        pwr_down();
     }
 
     switch (play_mode) {
@@ -196,6 +209,11 @@ void ir_decode()
         if ((results.decode_type == RC5) && (results.value >= 2048))
             results.value -= 2048;
 
+        // if we woke up from sleep, only allow a power-up command
+        if ((just_woken) && (results.value != 12)) {
+            results.value = 11111;
+        }
+
         if ((results.value == result_last) && (now - ir_delay_prev < ir_delay)) {
             results.value = 11111;
         }
@@ -235,7 +253,19 @@ void ir_decode()
 //        case 10: // 10
 //            ir_number = 10;
 //            break;
-
+        case 12: // power
+            // wake up from pwr_down
+            if (just_woken == 1) {
+                just_woken = 0;
+                wake_up_time = 0;
+                //play_mode = play_mode_prev;
+                play_mode = PLAY_RANDOM;
+                power_spi_enable();
+                vs_deassert_xreset();
+                vs_setup();
+                vs_setup_local();
+            }
+            break;
         case 56:               // AV
             in_number = 0;
             break;
@@ -245,8 +275,6 @@ void ir_decode()
           break;
         case 14: // yellow
           break;
-        case 12: // power
-            break;
         case 50: // zoom
             break;
         case 39: // sub
@@ -322,6 +350,7 @@ void ir_decode()
             ir_cmd = CMD_EXIT;
             break;
         case 14:               // play
+            /*
             if (play_mode == STOP) {
                 mute = false;
                 vs_deassert_xreset();
@@ -329,6 +358,7 @@ void ir_decode()
                 vs_setup_local();
                 vs_set_volume(volume, volume);
             }
+            */
             play_mode = PLAY_RANDOM;
             break;
 //        case 31:               // pause
@@ -555,12 +585,14 @@ uint8_t file_find_random()
     return 0;
 }
 
-void standby()
+// used when STOP command is issued
+void pwr_down()
 {
 
     vs_assert_xreset();
     wdt_disable();
     power_spi_disable();
+
     sleeping = 1;
 
     // wake up on remote control input (external INT0 interrupt)
@@ -575,14 +607,10 @@ void standby()
         sleep_cpu();
         sleep_disable();
         sei();
+        EIMSK = 0;              // disable INT0/1 interrupts
     } while (0);
 
     // wake up
-    EIMSK = 0;                  // disable INT0/1 interrupts
-    power_spi_enable();
-    vs_deassert_xreset();
-    vs_setup();
-    vs_setup_local();
     wdt_enable(WDTO_8S);
-    delay(100);
+
 }
