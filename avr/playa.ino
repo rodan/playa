@@ -31,7 +31,7 @@
 
 // vs1063
 uint8_t cbuff[CARD_BUFF_SZ];
-uint8_t volume = 40; // as negative attenuation. can go from 0x00 lound - 0xfe silent
+uint8_t volume = 40;            // as negative attenuation. can go from 0x00 lound - 0xfe silent
                      // 0xff is a special case (analog powerdown mode)
 
 // sdfat
@@ -58,8 +58,9 @@ uint16_t in_number = 0;
 uint16_t seed;
 uint8_t sleeping = 0, just_woken = 0;
 
-ISR(INT0_vect){
-    EIFR |= 0x1; // reset INTF0
+ISR(INT0_vect)
+{
+    EIFR |= 0x1;                // reset INTF0
     if (sleeping) {
         just_woken = 1;
         sleeping = 0;
@@ -92,7 +93,6 @@ void setup()
     if (!sd.init(SPI_FULL_SPEED, PIN_CARD_CS))
         sd.initErrorHalt();
 
-
 }
 
 void loop()
@@ -102,7 +102,7 @@ void loop()
     ir_decode();
     wdt_reset();
 
-    if ( play_mode != STOP ) {
+    if (play_mode != STOP) {
 
         // jack_detect is zero if a stereo jack is physically plugged in. 
         // otherwise the common voltage for the earphones (aka GBUF) is read (1.65v)
@@ -124,15 +124,15 @@ void loop()
         // attempt to gather some entropy from the outside
         // sometimes PIN_RANDOM gives the same values, so keep and increment seed between runs
         seed += millis();
-        for (i = 0; i < vbat/10; i++) {
+        for (i = 0; i < vbat / 10; i++) {
             seed += analogRead(PIN_RANDOM);
         }
         randomSeed(seed);
-        for (i = 0; i < vbat/10; i++) {
-            random(); // apparently randomSeed does not provide proper randomness
+        for (i = 0; i < vbat / 10; i++) {
+            random();           // apparently randomSeed does not provide proper randomness
         }
 
-        if ((vbat < 712) || (jack_detect > 0)) { 
+        if ((vbat < 712) || (jack_detect > 0)) {
             // shut down vs1063 to protect the Lipo cell
             vs_assert_xreset();
             play_mode_prev = play_mode;
@@ -201,42 +201,42 @@ void ir_decode()
         }
 
         switch (results.value) {
-        // RC5 codes
-        case 1: // 1
+            // RC5 codes
+        case 1:                // 1
             ir_number = 1;
             break;
-        case 2: // 2
+        case 2:                // 2
             ir_number = 2;
             break;
-        case 3: // 3
+        case 3:                // 3
             ir_number = 3;
             break;
-        case 4: // 4
+        case 4:                // 4
             ir_number = 4;
             break;
-        case 5: // 5
+        case 5:                // 5
             ir_number = 5;
             break;
-        case 6: // 6
+        case 6:                // 6
             ir_number = 6;
             break;
-        case 7: // 7
+        case 7:                // 7
             ir_number = 7;
             break;
-        case 8: // 8
+        case 8:                // 8
             ir_number = 8;
             break;
-        case 9: // 9
+        case 9:                // 9
             ir_number = 9;
             break;
-        case 0: // 0
+        case 0:                // 0
             ir_number = 0;
             break;
 //        case 10: // 10
 //            ir_number = 10;
 //            break;
 
-        case 56: // AV
+        case 56:               // AV
             in_number = 0;
             break;
 /*        case 36: // red
@@ -276,36 +276,42 @@ void ir_decode()
         case 18: // menu
             break;
 */
-        case 13: case 0x290:   // mute
+        case 13:
+        case 0x290:            // mute
             mute = true;
             vs_set_volume(0xfe, 0xfe);
             break;
-        case 16: case 0x490:   // vol+
+        case 16:
+        case 0x490:            // vol+
             mute = false;
             if (volume > 3) {
-                volume -= 4; // decrease attenuation by 2dB
+                volume -= 4;    // decrease attenuation by 2dB
                 vs_set_volume(volume, volume);
             }
             break;
-        case 17: case 0xc90:   // vol-
+        case 17:
+        case 0xc90:            // vol-
             mute = false;
             if (volume < 251) {
-                volume += 4; // increase attenuation by 2dB
+                volume += 4;    // increase attenuation by 2dB
                 vs_set_volume(volume, volume);
             }
             break;
-        case 28: case 0x90:    // ch+
+        case 28:
+        case 0x90:             // ch+
             ir_cmd = CMD_EXIT;
             vs_write_register(SCI_MODE, SM_CANCEL);
             break;
-        case 29: case 0x890:   // ch-
+        case 29:
+        case 0x890:            // ch-
             in_number++;
             ir_cmd = CMD_EXIT;
             vs_write_register(SCI_MODE, SM_CANCEL);
             break;
 //        case 36:               // record
 //            break;
-        case 54: case 0xa90:   // stop
+        case 54:
+        case 0xa90:            // stop
             vs_write_register(SCI_MODE, SM_CANCEL);
             // to minimize the power-off transient
             vs_set_volume(0xfe, 0xfe);
@@ -327,8 +333,9 @@ void ir_decode()
             break;
 //        case 31:               // pause
 //            break;
-        case 35: case 0xa50:     // rew, AV/TV
-            if ( in_number != 0 ) {
+        case 35:
+        case 0xa50:            // rew, AV/TV
+            if (in_number != 0) {
                 in_number = 0;
             } else {
                 if (play_mode == PLAY_RANDOM)
@@ -352,9 +359,8 @@ void ir_decode()
             result_last = results.value;
             ir_delay_prev = now;
         }
-
         // get a number from the ir remote
-        if ( ir_number > -1 ) {
+        if (ir_number > -1) {
             in_number = in_number * 10 + ir_number;
         }
 
@@ -400,7 +406,7 @@ uint8_t play_file()
             vs_deselect_data();
             // sometimes the decoder never gets busy while reading non-music data
             // so we exit here
-            if ( vs_read_register(SCI_HDAT1) == 0 ) {
+            if (vs_read_register(SCI_HDAT1) == 0) {
                 file.close();
                 vs_write_register(SCI_MODE, SM_CANCEL);
                 return 1;
@@ -427,10 +433,12 @@ uint8_t play_file()
                     if (codec == 0x4f67) {
                         // if ogg, read the replaygain offset
                         replaygain_offset = vs_read_wramaddr(ogg_gain_offset);
-                        if ( replaygain_offset < 10 && replaygain_offset > -30 ) {
-                            replaygain_volume = volume - ( replaygain_offset + 12 );
+                        if (replaygain_offset < 10 && replaygain_offset > -30) {
+                            replaygain_volume =
+                                volume - (replaygain_offset + 12);
                             if (!mute) {
-                                vs_set_volume(replaygain_volume, replaygain_volume);
+                                vs_set_volume(replaygain_volume,
+                                              replaygain_volume);
                             }
                             //Serial.println(volume);
                             //Serial.println(replaygain_offset);
@@ -440,7 +448,7 @@ uint8_t play_file()
                     checked = true;
                 }
                 vs_select_data();       // Pull XDCS low
-            } // the mint rubbing function
+            }                   // the mint rubbing function
 
             vs_buff_end = i + VS_BUFF_SZ - 1;
             if (vs_buff_end > r - 1) {
@@ -541,22 +549,23 @@ uint8_t file_find_random()
         return 0;
     } else {
         path_level++;
-        if (path_level < 5 )
+        if (path_level < 5)
             file_find_random();
     }
     return 0;
 }
 
-void standby() {
-
-    // wake up on remote control input (external INT0 interrupt)
-    EICRA = 0; //Interrupt on low level
-    EIMSK = (1<<INT0); // enable INT0 interrupt
+void standby()
+{
 
     vs_assert_xreset();
     wdt_disable();
     power_spi_disable();
     sleeping = 1;
+
+    // wake up on remote control input (external INT0 interrupt)
+    EICRA = 0;                  //Interrupt on low level
+    EIMSK = (1 << INT0);        // enable INT0 interrupt
 
     do {
         set_sleep_mode(SLEEP_MODE_PWR_DOWN);
@@ -569,7 +578,7 @@ void standby() {
     } while (0);
 
     // wake up
-    EIMSK = 0; // disable INT0/1 interrupts
+    EIMSK = 0;                  // disable INT0/1 interrupts
     power_spi_enable();
     vs_deassert_xreset();
     vs_setup();
@@ -577,4 +586,3 @@ void standby() {
     wdt_enable(WDTO_8S);
     delay(100);
 }
-
