@@ -46,10 +46,10 @@ char album_path[MAX_PATH];
 IRrecv irrecv(PIN_IR);
 decode_results results;
 uint32_t result_last = 11111;
-uint16_t ir_delay = 2000;   // delay between repeated button presses
+uint16_t ir_delay = 2000;       // delay between repeated button presses
 uint32_t ir_delay_prev = 0;
 uint8_t ir_cmd;
-uint8_t play_mode_prev;
+//uint8_t play_mode_prev;
 uint8_t play_mode = PLAY_RANDOM;
 uint8_t mute = false;
 uint16_t in_number = 0;
@@ -58,16 +58,15 @@ uint16_t in_number = 0;
 uint16_t seed;
 
 // sleep states
-volatile uint8_t sleeping = 0, just_woken = 0;
+volatile uint8_t just_woken = 0;
+uint8_t sleeping = 0;
 uint32_t wake_up_time = 0;      // systemtime when the uC was woken up
 uint16_t wake_up_delay = 2000;  // the delay until the uC is powered down again
 
 ISR(INT0_vect)
 {
-    EIFR |= 0x1;                // reset INTF0
-    if (sleeping) {
+    if (sleeping == 1) {
         just_woken = 1;
-        sleeping = 0;
     }
 }
 
@@ -101,82 +100,27 @@ void setup()
 
 void loop()
 {
-    uint16_t vbat, jack_detect;
-    uint32_t now;
-    uint8_t i;
+
     ir_decode();
     wdt_reset();
 
-    now = millis();
-
     if (play_mode != STOP) {
-
-        // jack_detect is zero if a stereo jack is physically plugged in. 
-        // otherwise the common voltage for the earphones (aka GBUF) is read (1.65v)
-        //
-        // vbat's value is (1024/Vref)*Vbattery*R2/(R1+R2), where
-        //    Vref     - ADC voltage reference - 3.3v
-        //    Vbattery - actual battery voltage (should be between 3 and 4.2v)
-        //    R2       - 68Kohm
-        //    R1       - 39Kohm
-        // we try to limit current consumption when the Lipo cell reaches about 3.6v.
-        // Note:
-        //   this formula is usable only when Vref is actually 3.3v. 
-        //   in case the cell voltage is below ~3.5v, vbat is not read correctly
-        //   and the only thing protecting the cell is the internal cutoff
-
-        vbat = analogRead(PIN_VBAT_DETECT);
-        jack_detect = analogRead(PIN_JACK_DETECT);
-
-        // attempt to gather some entropy from the outside
-        // sometimes PIN_RANDOM gives the same values, so keep and increment seed between runs
-        seed += millis();
-        for (i = 0; i < vbat / 10; i++) {
-            seed += analogRead(PIN_RANDOM);
+        env_check();
+    } else {
+        if (just_woken == 0) {
+            pwr_down();
+        } else if (just_woken == 1) {
+            if (wake_up_time == 0) {
+                wake_up_time = millis();
+            } else if (millis() - wake_up_time > wake_up_delay) {
+                // if an IR signal woke up the uC from sleep, but that signal was not 
+                // a power sequence then go back to sleep.
+                pwr_down();
+            }
         }
-        randomSeed(seed);
-        for (i = 0; i < vbat / 10; i++) {
-            random();           // apparently randomSeed does not provide proper randomness
-        }
-
-        if ((vbat < 712) || (jack_detect > 0)) {
-            // shut down vs1063 to protect the Lipo cell
-            vs_assert_xreset();
-            play_mode_prev = play_mode;
-            play_mode = STOP;
-        }
-    } else if (just_woken == 0) {
-        pwr_down();
-    } else if ((just_woken == 1) && (wake_up_time == 0)) {
-        wake_up_time = now;
-    } else if ((just_woken == 1) && (now - wake_up_time > wake_up_delay)) {
-        // if an IR signal woke up the uC from sleep, but that signal was not 
-        // a power sequence then go back to sleep.
-        wake_up_time = 0;
-        pwr_down();
     }
 
-    switch (play_mode) {
-    case STOP:
-        break;
-    case PLAY_RANDOM:
-        path_level = 0;
-        sd.chdir("/");
-        memset(file_path, 0, MAX_PATH);
-        file_find_random();
-        break;
-    case PLAY_ALBUM:
-        file_find_next();
-        break;
-    case SWITCH_TO_ALBUM:
-        play_mode = PLAY_ALBUM;
-        get_album_path();
-        sd.chdir(album_path);
-        sd.vwd()->rewind();
-        file_find_next();
-        break;
-    }
-
+    ui();
 }
 
 void vs_setup_local()
@@ -197,7 +141,7 @@ void vs_setup_local()
     vs_set_volume(volume, volume);
 }
 
-void ir_decode()
+uint8_t ir_decode()
 {
     unsigned long now;
     int8_t ir_number = -1;
@@ -211,11 +155,14 @@ void ir_decode()
 
         // if we woke up from sleep, only allow a power-up command
         if ((just_woken) && (results.value != 12)) {
-            results.value = 11111;
+            irrecv.resume();
+            return 1;
         }
 
-        if ((results.value == result_last) && (now - ir_delay_prev < ir_delay)) {
-            results.value = 11111;
+        if ((just_woken == 0) && (results.value == result_last)
+            && (now - ir_delay_prev < ir_delay)) {
+            irrecv.resume();
+            return 1;
         }
 
         switch (results.value) {
@@ -253,17 +200,17 @@ void ir_decode()
 //        case 10: // 10
 //            ir_number = 10;
 //            break;
-        case 12: // power
+        case 12:               // power
             // wake up from pwr_down
             if (just_woken == 1) {
                 just_woken = 0;
                 wake_up_time = 0;
                 //play_mode = play_mode_prev;
                 play_mode = PLAY_RANDOM;
-                power_spi_enable();
                 vs_deassert_xreset();
                 vs_setup();
                 vs_setup_local();
+                wdt_enable(WDTO_8S);
             }
             break;
         case 56:               // AV
@@ -345,20 +292,21 @@ void ir_decode()
             vs_set_volume(0xfe, 0xfe);
             delay(10);
             vs_assert_xreset();
-            play_mode_prev = play_mode;
+            //play_mode_prev = play_mode;
             play_mode = STOP;
             ir_cmd = CMD_EXIT;
+            return 0;
             break;
         case 14:               // play
             /*
-            if (play_mode == STOP) {
-                mute = false;
-                vs_deassert_xreset();
-                vs_wait();
-                vs_setup_local();
-                vs_set_volume(volume, volume);
-            }
-            */
+               if (play_mode == STOP) {
+               mute = false;
+               vs_deassert_xreset();
+               vs_wait();
+               vs_setup_local();
+               vs_set_volume(volume, volume);
+               }
+             */
             play_mode = PLAY_RANDOM;
             break;
 //        case 31:               // pause
@@ -396,7 +344,72 @@ void ir_decode()
 
         irrecv.resume();        // Receive the next keypress
     }
+    return 0;
+}
 
+void env_check()
+{
+    uint16_t vbat, jack_detect;
+    uint8_t i;
+
+    // jack_detect is zero if a stereo jack is physically plugged in. 
+    // otherwise the common voltage for the earphones (aka GBUF) is read (1.65v)
+    //
+    // vbat's value is (1024/Vref)*Vbattery*R2/(R1+R2), where
+    //    Vref     - ADC voltage reference - 3.3v
+    //    Vbattery - actual battery voltage (should be between 3 and 4.2v)
+    //    R2       - 68Kohm
+    //    R1       - 39Kohm
+    // we try to limit current consumption when the Lipo cell reaches about 3.6v.
+    // Note:
+    //   this formula is usable only when Vref is actually 3.3v. 
+    //   in case the cell voltage is below ~3.5v, vbat is not read correctly
+    //   and the only thing protecting the cell is the internal cutoff
+
+    vbat = analogRead(PIN_VBAT_DETECT);
+    jack_detect = analogRead(PIN_JACK_DETECT);
+
+    // attempt to gather some entropy from the outside
+    // sometimes PIN_RANDOM gives the same values, so keep and increment seed between runs
+    seed += millis();
+    for (i = 0; i < vbat / 10; i++) {
+        seed += analogRead(PIN_RANDOM);
+    }
+    randomSeed(seed);
+    for (i = 0; i < vbat / 10; i++) {
+        random();               // apparently randomSeed does not provide proper randomness
+    }
+
+    if ((vbat < 712) || (jack_detect > 0)) {
+        // shut down vs1063 to protect the Lipo cell
+        vs_assert_xreset();
+        //play_mode_prev = play_mode;
+        play_mode = STOP;
+    }
+}
+
+void ui()
+{
+    switch (play_mode) {
+    case STOP:
+        break;
+    case PLAY_RANDOM:
+        path_level = 0;
+        sd.chdir("/");
+        memset(file_path, 0, MAX_PATH);
+        file_find_random();
+        break;
+    case PLAY_ALBUM:
+        file_find_next();
+        break;
+    case SWITCH_TO_ALBUM:
+        play_mode = PLAY_ALBUM;
+        get_album_path();
+        sd.chdir(album_path);
+        sd.vwd()->rewind();
+        file_find_next();
+        break;
+    }
 }
 
 void get_album_path()
@@ -450,10 +463,10 @@ uint8_t play_file()
                 vs_deselect_data();     // Release the SDI bus
                 wdt_reset();
                 ir_decode();
-                if (ir_cmd == CMD_EXIT || codec == 0) {
+                if ((ir_cmd == CMD_EXIT) || (codec == 0)) {
                     file.close();
                     ir_cmd = CMD_NULL;
-                    vs_write_register(SCI_MODE, SM_CANCEL);
+                    //vs_write_register(SCI_MODE, SM_CANCEL);
                     return 0;
                 }
                 if (!checked && count > 1) {
@@ -589,28 +602,28 @@ uint8_t file_find_random()
 void pwr_down()
 {
 
+    wake_up_time = 0;
+    sleeping = 1;
     vs_assert_xreset();
     wdt_disable();
-    power_spi_disable();
 
-    sleeping = 1;
-
+    cli();
     // wake up on remote control input (external INT0 interrupt)
     EICRA = 0;                  //Interrupt on low level
     EIMSK = (1 << INT0);        // enable INT0 interrupt
 
     do {
+        sleeping = 1;
         set_sleep_mode(SLEEP_MODE_PWR_DOWN);
         cli();
         sleep_enable();
         sei();
         sleep_cpu();
         sleep_disable();
-        sei();
         EIMSK = 0;              // disable INT0/1 interrupts
+        sei();
     } while (0);
 
-    // wake up
-    wdt_enable(WDTO_8S);
-
+    EIMSK = 0;                  // disable INT0/1 interrupts
+    sleeping = 0;
 }

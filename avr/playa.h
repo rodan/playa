@@ -3,7 +3,9 @@
 #define playa_h
 
 void vs_setup_local();
-void ir_decode();
+uint8_t ir_decode();
+void env_check();
+void ui();
 void pwr_down();
 
 void get_album_path();
