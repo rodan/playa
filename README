@@ -15,11 +15,17 @@
 
   sdfatlib    http://code.google.com/p/sdfatlib/
   vs1063      https://github.com/rodan/vs1063
-  IRremote    http://www.arcfn.com/2009/08/multi-protocol-infrared-remote-library.html
+  IRremote    https://github.com/shirriff/Arduino-IRremote
 
   Usage:
    - an RC5 remote control provides the control (a Vishay TSOP IR receiver output goes to avr.D2).
    - by default music files are played randomly. the REW button from the remote switches to album mode
+
+  Power consumption profile:
+   - jumper/switch open - battery connected only to the charging circuit - < 3uA
+   - normal file decoding - 29-35 mA
+   - standby (after STOP ir command), IR sensor active - 900uA
+   - after uC woken up by ir sensor trigger, waiting for a POWER ir sequence (for max 2 seconds) - 4.5mA
 
   Known problems and limitations:
    - you should format the SDcard as Fat32 with 64k clusters
