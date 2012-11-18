@@ -274,14 +274,14 @@ uint8_t ir_decode()
 //            break;
         case 54:
         case 0xa90:            // stop
-            vs_write_register(SCI_MODE, SM_CANCEL);
-            // to minimize the power-off transient
-            vs_set_volume(0xfe, 0xfe);
-            delay(10);
-            vs_assert_xreset();
-            play_mode = STOP;
-            ir_cmd = CMD_EXIT;
-            return 0;
+            if (play_mode != STOP) { // do this loop only once
+                vs_write_register(SCI_MODE, SM_CANCEL);
+                // to minimize the power-off transient
+                vs_set_volume(0xfe, 0xfe);
+                delay(10);
+                play_mode = STOP;
+                ir_cmd = CMD_EXIT;
+            }
             break;
 //        case 14:               // play
 //            break;
@@ -358,7 +358,6 @@ void env_check()
 
     if ((vbat < 712) || (jack_detect > 0)) {
         // shut down vs1063 to protect the Lipo cell
-        vs_assert_xreset();
         play_mode = STOP;
     }
 }
