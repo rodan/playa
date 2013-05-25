@@ -30,7 +30,7 @@
 void setup(void);
 void loop(void);
 
-
+uint8_t ui_ir_decode(void);
 void vs_setup_local(void);
 void check_ir(void);
 

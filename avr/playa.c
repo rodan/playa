@@ -4,10 +4,10 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <avr/pgmspace.h>
-//#include <avr/wdt.h>
+#include <avr/wdt.h>
+#include <avr/sleep.h>
+#include <avr/power.h>
 #include <util/delay.h>
-//#include <avr/sleep.h>
-//#include <avr/power.h>
 
 #include "playa.h"
 #include "drivers/uart.h"
@@ -51,7 +51,7 @@ int main(void)
 {
     setup();
     for (;;) {
-        //loop();
+        loop();
     }
 }
 
@@ -73,8 +73,8 @@ void setup()
 
     //DDRD |= 0b00010000; // d4 is output
     //wdt_enable(WDTO_8S);        // Enable watchdog: max 8 seconds
-    //ir_init();
 
+    ir_init();
     spi_init();
     vs_setup();
     vs_setup_local();
@@ -117,13 +117,13 @@ void setup()
 
 }
 
-/*
 void loop()
 {
 
-    ir_decode();
-    wdt_reset();
+    ui_ir_decode();
+    //wdt_reset();
 
+    /*
     if (play_mode != STOP) {
         env_check();
     } else {
@@ -131,8 +131,8 @@ void loop()
     }
 
     ui();
+    */
 }
-*/
 
 void vs_setup_local(void)
 {
@@ -151,30 +151,34 @@ void vs_setup_local(void)
     vs_set_volume(volume, volume);
 }
 
-/*
-uint8_t ir_decode()
+uint8_t ui_ir_decode(void)
 {
     uint32_t now;
     int8_t ir_number = -1;
 
-    now = millis();
+    //XXX now = millis();
 
-    if (irrecv.decode(&results)) {
+    if (ir_decode(&results)) {
 
         if ((results.decode_type == RC5) && (results.value >= 2048))
             results.value -= 2048;
 
         // if we woke up from sleep, only allow a power-up command
         if ((just_woken) && (results.value != 12)) {
-            irrecv.resume();
+            ir_resume();
             return 1;
         }
 
+        /*
         if ((just_woken == 0) && (results.value == result_last)
             && (now - ir_delay_prev < ir_delay)) {
-            irrecv.resume();
+            ir_resume();
             return 1;
         }
+        */
+
+        sprintf(str_temp, "%ld\r\n", results.value);
+        uart_puts(str_temp);
 
         switch (results.value) {
             // RC5 codes
@@ -226,7 +230,6 @@ uint8_t ir_decode()
         case 56:               // AV
             in_number = 0;
             break;
-            */
 /*        case 36: // red
           break;
         case 35: // green
@@ -262,15 +265,14 @@ uint8_t ir_decode()
         case 18: // menu
             break;
 */
-            /*
         case 13:
         case 0x290:            // mute
-            mute = true;
+            mute = 1;
             vs_set_volume(0xfe, 0xfe);
             break;
         case 16:
         case 0x490:            // vol+
-            mute = false;
+            mute = 0;
             if (volume > 3) {
                 volume -= 4;    // decrease attenuation by 2dB
                 vs_set_volume(volume, volume);
@@ -278,7 +280,7 @@ uint8_t ir_decode()
             break;
         case 17:
         case 0xc90:            // vol-
-            mute = false;
+            mute = 0;
             if (volume < 251) {
                 volume += 4;    // increase attenuation by 2dB
                 vs_set_volume(volume, volume);
@@ -303,7 +305,7 @@ uint8_t ir_decode()
                 vs_write_register(SCI_MODE, SM_CANCEL);
                 // to minimize the power-off transient
                 vs_set_volume(0xfe, 0xfe);
-                delay(10);
+                _delay_ms(10);
                 play_mode = STOP;
                 ir_cmd = CMD_EXIT;
             }
@@ -336,18 +338,19 @@ uint8_t ir_decode()
             && (results.value != 17) && (results.value != 0xc90) &&
             (results.value != 0x490)) {
             result_last = results.value;
-            ir_delay_prev = now;
+            //XXX ir_delay_prev = now;
         }
         // get a number from the ir remote
         if (ir_number > -1) {
             in_number = in_number * 10 + ir_number;
         }
 
-        irrecv.resume();        // Receive the next keypress
+        ir_resume();        // Receive the next keypress
     }
     return 0;
 }
 
+/*
 void env_check()
 {
     uint16_t vbat, jack_detect;
