@@ -2,6 +2,7 @@
   25 May 2013; Petre Rodan <petre.rodan@simplex.ro>
    - complete rewrite of the project, version bump to 2.0
    - drop SDFat, arduino/processing dependencies
+   - completely standalone version
 
   17 Nov 2012; Petre Rodan <petre.rodan@simplex.ro>
    - add 8s watchdog

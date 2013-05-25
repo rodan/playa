@@ -4,9 +4,8 @@
 #include <stdint.h>
 #include <avr/io.h>
 
-// the ir sensor is tied to PD3
-#define IR          0b00001000
-//#define IR_PORT     PORTD
+// the ir sensor is tied to PD2
+#define IR          0b00000100
 #define IR_DDR      DDRD
 #define IR_PIN      PIND
 

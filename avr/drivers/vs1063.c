@@ -1,15 +1,8 @@
 
+#include <util/delay.h>
+
 #include "vs1063.h"
 #include "spi.h"
-
-#define vs_select_control       VS_XCS_PORT &= ~VS_XCS
-#define vs_deselect_control     VS_XCS_PORT |= VS_XCS
-#define vs_select_data          VS_XDCS_PORT &= ~VS_XDCS
-#define vs_deselect_data        VS_XDCS_PORT |= VS_XDCS
-
-// should be followed by 200ms delays for the cap to charge/discharge
-#define vs_assert_xreset        VS_XRESET_PORT &= ~VS_XRESET
-#define vs_deassert_xreset      VS_XRESET_PORT |= VS_XRESET
 
 /*
 // read the 16-bit value of a VS10xx register
@@ -37,7 +30,7 @@ void vs_write_register(uint8_t address, uint8_t highbyte, uint8_t lowbyte)
     vs_deselect_data();
     vs_select_control();
     vs_wait();
-    delay(2);
+    _delay_ms(2);
     SPI.transfer(VS_WRITE_COMMAND);
     SPI.transfer(address);
     SPI.transfer(highbyte);
@@ -77,8 +70,7 @@ void vs_write_wramaddr(uint16_t address, uint16_t value)
 // wait for VS_DREQ to get HIGH before sending new data to SPI
 void vs_wait()
 {
-    //while (!digitalRead(VS_DREQ)) {};
-    while (VS_DREQ_PIN & VS_DREQ) {};
+    while (!(VS_DREQ_PIN & VS_DREQ)) {};
 }
 
 // set up pins
@@ -92,9 +84,9 @@ void vs_setup()
     VS_XDCS_DDR |= VS_XDCS;
     VS_XRESET_DDR |= VS_XRESET;
 
-    //vs_deassert_xreset();
-    //delay(200);
-    //vs_wait();
+    vs_deassert_xreset();
+    _delay_ms(200);
+    vs_wait();
 }
 
 /*

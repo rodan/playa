@@ -5,7 +5,7 @@ PRJ			= playa
 #
 CC_CMACH	= -mmcu=atmega328p 
 CC_DMACH	= -D__AVR_ATmega328P__
-CC_CFREQ	= -DF_CPU=16000000L
+CC_CFREQ	= -DF_CPU=8000000L
 ### Build flags
 #
 # -fdata-sections, -ffunction-sections and -Wl,--gc-sections -Wl,-s

@@ -4,26 +4,35 @@
 
 #include <inttypes.h>
 
-// Control Chip Select Pin (for accessing SPI Control/Status registers)
-#define VS_XCS          0
+// Control Chip Select Pin (for accessing SPI Control/Status registers) - PB0
+#define VS_XCS          0b00000001
 #define VS_XCS_PORT     PORTB
 #define VS_XCS_DDR      DDRB
 
-// Data Chip Select / BSYNC Pin
-#define VS_XDCS         7
+// Data Chip Select / BSYNC Pin - PD7
+#define VS_XDCS         0b10000000
 #define VS_XDCS_PORT    PORTD
 #define VS_XDCS_DDR     DDRD
 
-// Data Request Pin: Player asks for more data
-#define VS_DREQ         6
+// Data Request Pin: Player asks for more data - PD6
+#define VS_DREQ         0b01000000
 #define VS_DREQ_PORT    PORTD
 #define VS_DREQ_PIN     PIND
 #define VS_DREQ_DDR     DDRD
 
-// XRESET pin
-#define VS_XRESET       0
+// XRESET pin - PC0
+#define VS_XRESET       0b00000001
 #define VS_XRESET_PORT  PORTC
 #define VS_XRESET_DDR   DDRC
+
+#define vs_select_control()     VS_XCS_PORT &= ~VS_XCS
+#define vs_deselect_control()   VS_XCS_PORT |= VS_XCS
+#define vs_select_data()        VS_XDCS_PORT &= ~VS_XDCS
+#define vs_deselect_data()      VS_XDCS_PORT |= VS_XDCS
+
+// should be followed by 200ms delays for the cap to charge/discharge
+#define vs_assert_xreset()      VS_XRESET_PORT &= ~VS_XRESET
+#define vs_deassert_xreset()    VS_XRESET_PORT |= VS_XRESET
 
 // VS10xx SCI read and write commands
 #define VS_WRITE_COMMAND    0x02
@@ -95,13 +104,6 @@ uint16_t vs_read_wramaddr(uint16_t address);
 void vs_write_wramaddr(uint16_t address, uint16_t value);
 
 void vs_wait(void);
-
-void vs_select_control(void);
-void vs_deselect_control(void);
-void vs_select_data(void);
-void vs_deselect_data(void);
-void vs_assert_xreset(void);
-void vs_deassert_xreset(void);
 
 void vs_setup(void);
 void vs_setup_i2s(void);

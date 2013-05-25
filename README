@@ -12,13 +12,13 @@
 
   Library dependencies for the avr code:
 
-if using the 'v2' branch:
-  none
+   if using the 'v2' branch:
+      none (this is a standalone version)
 
-if using the old 'arduino' branch:
-  sdfatlib    http://code.google.com/p/sdfatlib/
-  vs1063      https://github.com/rodan/vs1063
-  IRremote    https://github.com/shirriff/Arduino-IRremote
+   if using the old 'arduino' branch:
+      sdfatlib    http://code.google.com/p/sdfatlib/
+      vs1063      https://github.com/rodan/vs1063
+      IRremote    https://github.com/shirriff/Arduino-IRremote
 
   Usage:
    - an RC5 remote control provides the control (a Vishay TSOP IR receiver output goes to avr.D2).

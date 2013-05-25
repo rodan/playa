@@ -18,13 +18,8 @@
  *
  */
 
-
-#include "ir_remote.h"
-
 #include <avr/interrupt.h>
-//#include "timer_a1.h"
-//#include "ss.h"
-//#include "sys_messagebus.h"
+#include "ir_remote.h"
 
 volatile irparams_t irparams;
 decode_results results;

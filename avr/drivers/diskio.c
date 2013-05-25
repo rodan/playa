@@ -6,12 +6,12 @@
 #include "diskio.h"
 #include "spi.h"
 
-
 // Port controls  (Platform dependent)
-//#define CS_LOW()	PORTB &= ~DD_SS	// CS=low
-//#define	CS_HIGH()	PORTB |= DD_SS	// CS=high
-#define CS_LOW()	PORTD &= ~16	// CS=low
-#define	CS_HIGH()	PORTD |=  16	// CS=high
+#define CS_LOW()	PORTB &= ~DD_SS	// CS=low
+#define	CS_HIGH()	PORTB |= DD_SS	// CS=high
+
+//#define CS_LOW()	PORTD &= ~0b00010000	// CS=low
+//#define	CS_HIGH()	PORTD |=  0b00010000	// CS=high
 
 #define SOCKINS		1	            // Card detected.   yes:true, no:false, default:true
 #define SOCKWP		0       		// Write protected. yes:true, no:false, default:false
@@ -73,27 +73,13 @@ int power_status (void)		/* Socket power state: 0=off, 1=on */
 static
 void power_on (void)
 {
-
-    //spi_init();
-	PORTB |= 0b00101100;	// Configure SCK/MOSI/CS as output //sck, mosi
-	DDRB  |= 0b00101100;                                       //sck, mosi
-
-	SPCR = 0x52;			// Enable SPI function in mode 0
-	SPSR = 0x01;			// SPI 2x mode
+    spi_init();
 }
 
 static
 void power_off (void)
 {
-	SPCR = 0;				/* Disable SPI function */
-	DDRB  &= ~0b00101100;	// Set SCK/MOSI/CS as hi-z, INS#/WP as pull-up
-	PORTB &= ~0b00101100;
-
-    /*
-	DDRB  &= ~0b00110111;	// Set SCK/MOSI/CS as hi-z, INS#/WP as pull-up
-	PORTB &= ~0b00000111;
-	PORTB |=  0b00110000;
-    */
+    spi_disable();
 }
 
 
@@ -619,3 +605,9 @@ void disk_timerproc (void)
 
 	Stat = s;				/* Update MMC status */
 }
+
+DWORD get_fattime(void)
+{
+    return 0;
+}
+
