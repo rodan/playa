@@ -2,17 +2,20 @@
 
    - a smallish and spartan music player that can work for weeks between charges
    - a 2Ah Li-poly cell and an integrated charger - 5V input
-   - decoding ogg files is a must
+   - ogg vorbis file decoding
    - microSD (SDHC) is the storage medium. so fat32 and cards bigger than 4G should be supported
 
-
   there are 2 components in this repository:
-  avr       - contains the Arduino code for the microcontroller
+  avr       - contains the C sourcecode for the firmware
   hardware  - open source hardware for the main board
 				the schematic is based on VLSI's Simple DSP Evaluation Board [1]
 
   Library dependencies for the avr code:
 
+if using the 'v2' branch:
+  none
+
+if using the old 'arduino' branch:
   sdfatlib    http://code.google.com/p/sdfatlib/
   vs1063      https://github.com/rodan/vs1063
   IRremote    https://github.com/shirriff/Arduino-IRremote
@@ -28,7 +31,7 @@
    - after uC woken up by ir sensor trigger, waiting for a POWER ir sequence (for max 2 seconds) - 4.5mA
 
   Known problems and limitations:
-   - you should format the SDcard as Fat32 with 64k clusters
+   - you should format the SDcard as Fat32 with largest available cluster size
    - no special chars must be used in the filesystem entries, only ascii alphanumeric chars
    - there is a hardcoded MAX_PATH that only allows about 4 parent dirs to any music file
 
