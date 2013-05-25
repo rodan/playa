@@ -55,8 +55,18 @@ char str_temp[64];
 int main(void)
 {
     setup();
+
     for (;;) {
-        loop();
+        wdt_reset();
+        ui_ir_decode();
+        /*
+        if (play_mode != STOP) {
+            env_check();
+        } else {
+            sleep_mgmt();
+        }
+        */
+        ui();
     }
 }
 
@@ -65,75 +75,31 @@ void setup()
 
     _delay_ms(1000);            // switch/jumper/ammeter debounce
 
+    sei();
+
 //#ifdef DEBUG
     uart_init(UART_BAUD_SELECT(9600, F_CPU));
+    uart_puts_P("?"); //XXX remove
 //#else
 //    power_usart0_disable();
 //#endif
 
-    //power_twi_disable();
-
-    sei();
-    uart_puts_P("?");
-
-    //DDRD |= 0b00010000; // d4 is output
-    //wdt_enable(WDTO_8S);        // Enable watchdog: max 8 seconds
-
+    wdt_enable(WDTO_8S);        // Enable watchdog: max 8 seconds
+    power_twi_disable();
     ir_init();
     spi_init();
     vs_setup();
     vs_setup_local();
 
-    //vs_deselect_control();
-    //vs_deselect_data();
-
-    if (f_mount(0, &fs) != FR_OK) {
-        //flag error
-        uart_puts_P("err: f_mount\r\n");
-    }
-
-    dstatus = disk_initialize(0);
-
-    if (dstatus & STA_NOINIT) {
-        uart_puts_P("err: noinit\r\n");
-    }
-    if (dstatus & STA_NODISK) {
-        uart_puts_P("err: nodisk\r\n");
-    }
-    if (dstatus & STA_PROTECT) {
-        uart_puts_P("err: protect\r\n");
-    }
-
-    /*
-       if (f_open(&file, "FOO.TXT", FA_READ) !=
-       FR_OK) {
-       //flag error
-       uart_puts_P("err: f_open\r\n");
-       } else {
-       //f_write(&logFile, "New log opened!\n", 16, &bytesWritten);
-       //f_sync(&logFile);
-       f_close(&file);
-       uart_puts_P("weeee\r\n");
-       }
-
-       f_mount(0, 0);
-     */
-
-}
-
-void loop()
-{
-    wdt_reset();
-    ui_ir_decode();
-    /*
-    if (play_mode != STOP) {
-        env_check();
+    if (f_mount(0, &fs) == FR_OK) {
+        dstatus = disk_initialize(0);
+        if (dstatus & ( STA_NOINIT | STA_NODISK | STA_PROTECT )) {
+            play_mode = STOP;
+        }
     } else {
-        sleep_mgmt();
+        play_mode = STOP;
     }
-    */
 
-    ui();
 }
 
 void vs_setup_local(void)
@@ -665,10 +631,11 @@ void pwr_down()
     sleeping = 0;
 }
 
+*/
+
 ISR(INT0_vect)
 {
     if (sleeping == 1) {
         just_woken = 1;
     }
 }
-*/
