@@ -33,8 +33,10 @@ void loop(void);
 
 uint8_t ui_ir_decode(void);
 uint8_t file_find_random(void);
+uint8_t file_find_next(void);
 void get_album_path(void);
 void vs_setup_local(void);
 void check_ir(void);
+void ui(void);
 
 #endif

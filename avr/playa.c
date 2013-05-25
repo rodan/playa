@@ -74,7 +74,7 @@ void setup()
     //power_twi_disable();
 
     sei();
-    uart_puts_P("hello\r\n");
+    uart_puts_P("?");
 
     //DDRD |= 0b00010000; // d4 is output
     //wdt_enable(WDTO_8S);        // Enable watchdog: max 8 seconds
@@ -126,13 +126,14 @@ void loop()
     wdt_reset();
     ui_ir_decode();
     /*
-       if (play_mode != STOP) {
-       env_check();
-       } else {
-       sleep_mgmt();
-       }
-       ui();
-     */
+    if (play_mode != STOP) {
+        env_check();
+    } else {
+        sleep_mgmt();
+    }
+    */
+
+    ui();
 }
 
 void vs_setup_local(void)
@@ -212,11 +213,6 @@ uint8_t ui_ir_decode(void)
             break;
         case 0:                // 0
             ir_number = 0;
-            uart_puts_P("finding\r\n");
-            path_level = 0;
-            f_opendir(&dir, "/");
-            memset(file_path, 0, MAX_PATH);
-            file_find_random();
             break;
 //        case 10: // 10
 //            ir_number = 10;
@@ -397,15 +393,14 @@ void env_check()
 }
 */
 
-/*
-void ui()
+void ui(void)
 {
     switch (play_mode) {
     case STOP:
         break;
     case PLAY_RANDOM:
         path_level = 0;
-        sd.chdir("/");
+        f_opendir(&dir, "/");
         memset(file_path, 0, MAX_PATH);
         file_find_random();
         break;
@@ -415,13 +410,12 @@ void ui()
     case SWITCH_TO_ALBUM:
         play_mode = PLAY_ALBUM;
         get_album_path();
-        sd.chdir(album_path);
-        sd.vwd()->rewind();
+        f_opendir(&dir, album_path);
+        f_readdir(&dir, NULL);  // rewind dir
         file_find_next();
         break;
     }
 }
-*/
 
 void get_album_path(void)
 {
@@ -511,8 +505,9 @@ uint8_t play_file(void)
                 vs_buff_end = r - 1;
             }
             // send up to 32bytes after a VS_DREQ check
+            //spi_transmit_sync();
             while (i <= vs_buff_end) {
-                spi_transfer(cbuff[i]); // Send SPI byte
+                spi_transfer(cbuff[i]);
                 i++;
             }
         }
@@ -527,20 +522,23 @@ uint8_t play_file(void)
     return 0;
 }
 
-/*
-uint8_t file_find_next()
+uint8_t file_find_next(void)
 {
-    if (file.openNext(sd.vwd(), O_READ)) {
-        file.getFilename(fs_entity);
-        file.close();
-        snprintf(file_path, MAX_PATH, "%s/%s", album_path, fs_entity);
+    FILINFO fno;
+
+    if (f_readdir(&dir, &fno) == FR_OK) {
+        if (fno.fname[0] != 0) {
+            snprintf(file_path, MAX_PATH, "%s/%s", album_path, fno.fname);
+        } else {
+            // the album has ended
+            play_mode = PLAY_RANDOM;
+            return 0;
+        }
     } else {
-        // the album has ended
-        play_mode = PLAY_RANDOM;
-        return 0;
+        return 1;
     }
 
-    if (!sd.chdir(fs_entity)) {
+    if (!(fno.fattrib & AM_DIR)) {
         play_file();
         return 0;
     } else {
@@ -549,7 +547,6 @@ uint8_t file_find_next()
 
     return 0;
 }
-*/
 
 uint8_t file_find_random(void)
 {
@@ -596,14 +593,14 @@ uint8_t file_find_random(void)
     strncat(file_path, "/", 2);
     strncat(file_path, fno.fname, 14);
 
-//#ifdef DEBUG
+#ifdef DEBUG
     sprintf(str_temp, "%d path_lvl, %d items\r\n", path_level, items);
     uart_puts(str_temp);
     sprintf(str_temp, "%d seed, %d rnd, %d in_num\r\n", seed, rnd, in_number);
     uart_puts(str_temp);
     sprintf(str_temp, "%s path\r\n\r\n", file_path);
     uart_puts(str_temp);
-//#endif
+#endif
 
     if (fno.fattrib & AM_DIR) {
         path_level++;
