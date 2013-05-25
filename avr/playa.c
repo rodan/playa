@@ -1,20 +1,18 @@
 
-//#include <avr/io.h>
-//#include <avr/pgmspace.h>
-//#include <avr/interrupt.h>
-//#include <string.h>
-//#include "drivers/uart.h"
-//#include "drivers/xitoa.h"
+#include "playa.h"
 #include "drivers/uart.h"
 #include "drivers/diskio.h"
 #include "drivers/vs1063.h"
+#include "drivers/ir_remote.h"
 #include "fatfs/ff.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <avr/pgmspace.h>
 
+char str_temp[64];
 
 //FUSES = {0xAF, 0xC3, 0xFF};           
 /* ATmega64 fuses: Low, High, Extended.
@@ -30,11 +28,8 @@ DWORD get_fattime(void)
 
 int main(void)
 {
-    FATFS FileSystemObject;
-    DSTATUS driveStatus;
-    FIL logFile;
-    unsigned int bytesWritten;
 
+    ir_init();
     uart_init(UART_BAUD_SELECT(9600,F_CPU));
     //vs_setup();
 
@@ -42,6 +37,12 @@ int main(void)
 
     sei();
     uart_puts_P("hello\r\n");
+
+    /*
+    FATFS FileSystemObject;
+    DSTATUS driveStatus;
+    FIL logFile;
+    unsigned int bytesWritten;
 
     if (f_mount(0, &FileSystemObject) != FR_OK) {
         //flag error
@@ -59,7 +60,7 @@ int main(void)
     if (driveStatus & STA_PROTECT) {
         uart_puts_P("err: protect\r\n");
     }
-     
+
     if (f_open(&logFile, "FOO.TXT", FA_READ | FA_WRITE | FA_OPEN_ALWAYS) !=
         FR_OK) {
         //flag error
@@ -73,11 +74,24 @@ int main(void)
 
     f_mount(0, 0);
     uart_puts_P("end\r\n");
+    */
 
     //vs_setup();
     
     for(;;)
     {
+        check_ir();
     }
 
 }
+
+
+void check_ir(void)
+{
+    if (ir_decode(&results)) {
+        sprintf(str_temp, "%ld\r\n", results.value);
+        uart_puts(str_temp);
+        ir_resume();            // Receive the next value
+    }
+}
+
