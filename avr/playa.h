@@ -14,7 +14,8 @@
 #define ANALOG_DDR      DDRC
 #define ANALOG_PIN      PINC
 
-#define CARD_BUFF_SZ    512     // how much data to read from the uSD card in one go
+//#define CARD_BUFF_SZ    512     // how much data to read from the uSD card in one go
+#define CARD_BUFF_SZ    64      // how much data to read from the uSD card in one go
 #define VS_BUFF_SZ      32      // how much data to send in one batch to VS1063
 #define MAX_PATH        40      // enough for 4 parent dirs for one file
 
@@ -31,6 +32,8 @@ void setup(void);
 void loop(void);
 
 uint8_t ui_ir_decode(void);
+uint8_t file_find_random(void);
+void get_album_path(void);
 void vs_setup_local(void);
 void check_ir(void);
 

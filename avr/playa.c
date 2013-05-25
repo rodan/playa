@@ -1,6 +1,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <avr/pgmspace.h>
@@ -18,7 +19,7 @@
 #include "fatfs/ff.h"
 
 // vs1063
-//uint8_t cbuff[CARD_BUFF_SZ];
+uint8_t cbuff[CARD_BUFF_SZ];
 uint8_t volume = 40;            // as negative attenuation. can go from 0x00 lound - 0xfe silent
                      // 0xff is a special case (analog powerdown mode)
 
@@ -32,9 +33,13 @@ uint8_t mute = 0;
 uint16_t in_number = 0;
 
 // fatfs
-FATFS fs;
-DSTATUS dstatus;
+DSTATUS dstatus;                // disc status set by disk_initialize()
+FATFS fs;                       // mounted entity
+DIR dir;
 FIL file;
+uint8_t path_level;
+char file_path[MAX_PATH];
+char album_path[MAX_PATH];
 
 // misc
 uint16_t seed;
@@ -58,7 +63,7 @@ int main(void)
 void setup()
 {
 
-    _delay_ms(1000);        // switch/jumper/ammeter debounce
+    _delay_ms(1000);            // switch/jumper/ammeter debounce
 
 //#ifdef DEBUG
     uart_init(UART_BAUD_SELECT(9600, F_CPU));
@@ -82,7 +87,6 @@ void setup()
     //vs_deselect_control();
     //vs_deselect_data();
 
-    
     if (f_mount(0, &fs) != FR_OK) {
         //flag error
         uart_puts_P("err: f_mount\r\n");
@@ -100,38 +104,35 @@ void setup()
         uart_puts_P("err: protect\r\n");
     }
 
-    if (f_open(&file, "FOO.TXT", FA_READ) !=
-        FR_OK) {
-        //flag error
-        uart_puts_P("err: f_open\r\n");
-    } else {
-        //f_write(&logFile, "New log opened!\n", 16, &bytesWritten);
-        //f_sync(&logFile);
-        f_close(&file);
-        uart_puts_P("weeee\r\n");
-    }
+    /*
+       if (f_open(&file, "FOO.TXT", FA_READ) !=
+       FR_OK) {
+       //flag error
+       uart_puts_P("err: f_open\r\n");
+       } else {
+       //f_write(&logFile, "New log opened!\n", 16, &bytesWritten);
+       //f_sync(&logFile);
+       f_close(&file);
+       uart_puts_P("weeee\r\n");
+       }
 
-    f_mount(0, 0);
-    
-    uart_puts_P("end\r\n");
+       f_mount(0, 0);
+     */
 
 }
 
 void loop()
 {
-
+    wdt_reset();
     ui_ir_decode();
-    //wdt_reset();
-
     /*
-    if (play_mode != STOP) {
-        env_check();
-    } else {
-        sleep_mgmt();
-    }
-
-    ui();
-    */
+       if (play_mode != STOP) {
+       env_check();
+       } else {
+       sleep_mgmt();
+       }
+       ui();
+     */
 }
 
 void vs_setup_local(void)
@@ -144,9 +145,9 @@ void vs_setup_local(void)
     //the analog output swing
     vs_write_register(SCI_STATUS, SS_REFERENCE_SEL);
     // Declick: Slow sample rate for slow analog part startup
-    vs_write_register_hl(SCI_AUDATA, 0, 10);       // 10 Hz
+    vs_write_register_hl(SCI_AUDATA, 0, 10);    // 10 Hz
     // Switch on the analog parts
-    vs_write_register_hl(SCI_AUDATA, 31, 64);      // 8kHz
+    vs_write_register_hl(SCI_AUDATA, 31, 64);   // 8kHz
     vs_soft_reset();
     vs_set_volume(volume, volume);
 }
@@ -170,12 +171,12 @@ uint8_t ui_ir_decode(void)
         }
 
         /*
-        if ((just_woken == 0) && (results.value == result_last)
-            && (now - ir_delay_prev < ir_delay)) {
-            ir_resume();
-            return 1;
-        }
-        */
+           if ((just_woken == 0) && (results.value == result_last)
+           && (now - ir_delay_prev < ir_delay)) {
+           ir_resume();
+           return 1;
+           }
+         */
 
         sprintf(str_temp, "%ld\r\n", results.value);
         uart_puts(str_temp);
@@ -211,6 +212,11 @@ uint8_t ui_ir_decode(void)
             break;
         case 0:                // 0
             ir_number = 0;
+            uart_puts_P("finding\r\n");
+            path_level = 0;
+            f_opendir(&dir, "/");
+            memset(file_path, 0, MAX_PATH);
+            file_find_random();
             break;
 //        case 10: // 10
 //            ir_number = 10;
@@ -329,7 +335,7 @@ uint8_t ui_ir_decode(void)
 //        case : // fwd
 //            break;
 //        default:
-//            Serial.println(results.value);
+//            uart_putsln(results.value);
 //            break;
         }                       // case
 
@@ -345,7 +351,7 @@ uint8_t ui_ir_decode(void)
             in_number = in_number * 10 + ir_number;
         }
 
-        ir_resume();        // Receive the next keypress
+        ir_resume();            // Receive the next keypress
     }
     return 0;
 }
@@ -389,7 +395,9 @@ void env_check()
         play_mode = STOP;
     }
 }
+*/
 
+/*
 void ui()
 {
     switch (play_mode) {
@@ -413,8 +421,9 @@ void ui()
         break;
     }
 }
+*/
 
-void get_album_path()
+void get_album_path(void)
 {
     uint8_t i;
     uint8_t l = 0;
@@ -427,24 +436,26 @@ void get_album_path()
     // so there is no buffer overflow here
 }
 
-uint8_t play_file()
+uint8_t play_file(void)
 {
     uint16_t i, r, vs_buff_end;
     uint8_t count = 0;
-    uint8_t checked = false;
+    uint8_t checked = 0;
     uint16_t codec = 0x0eaa;    // something unused
     int16_t replaygain_offset = 0;
     uint8_t replaygain_volume;
+    FRESULT res;
 
     vs_soft_reset();
 
-    //Serial.println(file_path);
-
-    if (!file.open(file_path, O_READ)) {
-        sd.errorHalt("open failed");
+    if (f_open(&file, file_path, FA_OPEN_EXISTING | FA_READ)) {
+        uart_puts_P("err f_open");
+        return 1;
     }
 
-    while ((r = file.read(cbuff, CARD_BUFF_SZ))) {
+    for (;;) {
+        res = f_read(&file, cbuff, CARD_BUFF_SZ, &r);
+        if (res || r == 0) break; // file open err or EOF
         if (!checked)
             count++;
         if (!checked && count > 10) {
@@ -452,7 +463,7 @@ uint8_t play_file()
             // sometimes the decoder never gets busy while reading non-music data
             // so we exit here
             if (vs_read_register(SCI_HDAT1) == 0) {
-                file.close();
+                f_close(&file);
                 vs_write_register(SCI_MODE, SM_CANCEL);
                 return 1;
             }
@@ -460,13 +471,13 @@ uint8_t play_file()
         vs_select_data();
         i = 0;
         while (i < r) {
-            while (!digitalRead(VS_DREQ)) {
+            while (!(VS_DREQ_PIN & VS_DREQ)) {
                 // the VS chip is busy, so do something else
                 vs_deselect_data();     // Release the SDI bus
                 wdt_reset();
-                ir_decode();
+                ui_ir_decode();
                 if ((ir_cmd == CMD_EXIT) || (codec == 0)) {
-                    file.close();
+                    f_close(&file);
                     ir_cmd = CMD_NULL;
                     //vs_write_register(SCI_MODE, SM_CANCEL);
                     return 0;
@@ -485,12 +496,12 @@ uint8_t play_file()
                                 vs_set_volume(replaygain_volume,
                                               replaygain_volume);
                             }
-                            //Serial.println(volume);
-                            //Serial.println(replaygain_offset);
-                            //Serial.println(replaygain_volume);
+                            //uart_putsln(volume);
+                            //uart_putsln(replaygain_offset);
+                            //uart_putsln(replaygain_volume);
                         }
                     }
-                    checked = true;
+                    checked = 1;
                 }
                 vs_select_data();       // Pull XDCS low
             }                   // the mint rubbing function
@@ -501,7 +512,7 @@ uint8_t play_file()
             }
             // send up to 32bytes after a VS_DREQ check
             while (i <= vs_buff_end) {
-                SPI.transfer(cbuff[i]); // Send SPI byte
+                spi_transfer(cbuff[i]); // Send SPI byte
                 i++;
             }
         }
@@ -512,10 +523,11 @@ uint8_t play_file()
     vs_write_register(SCI_MODE, SM_CANCEL);
     //SendZerosToVS10xx();
 
-    file.close();
+    f_close(&file);
     return 0;
 }
 
+/*
 uint8_t file_find_next()
 {
     if (file.openNext(sd.vwd(), O_READ)) {
@@ -537,16 +549,28 @@ uint8_t file_find_next()
 
     return 0;
 }
+*/
 
-uint8_t file_find_random()
+uint8_t file_find_random(void)
 {
+    FRESULT res;
+    FILINFO fno;
+
     uint16_t i = 0, items = 0, rnd;
 
     // how many items in the current dir?
-    while (file.openNext(sd.vwd(), O_READ)) {
+    while (f_readdir(&dir, &fno) == FR_OK) {
+        if (fno.fname[0] == 0) {
+            break;
+        }
         items++;
-        file.close();
     }
+
+    sprintf(str_temp, "%d items\r\n", items);
+    uart_puts(str_temp);
+
+    // rewind dir
+    f_readdir(&dir, NULL);
 
     if (items == 0)
         return 1;
@@ -555,51 +579,50 @@ uint8_t file_find_random()
         if (in_number == 0) {
             // pick one at random, then either play it if it's a file
             // or cd into it and repeat until a file is found
-            rnd = random(1, items + 1);
+            rnd = (random() % items) + 1;
         } else {
             rnd = (in_number % items) + 1;
         }
     } else {
-        rnd = random(1, items + 1);
+        rnd = (random() % items) + 1;
     }
 
-    sd.vwd()->rewind();
-
     for (i = 1; i <= rnd; i++) {
-        file.openNext(sd.vwd(), O_READ);
-        file.getFilename(fs_entity);
-        file.close();
+        res = f_readdir(&dir, &fno);
+        uart_puts(fno.fname);
+        uart_puts_P("\r\n");
     }
 
     strncat(file_path, "/", 2);
-    strncat(file_path, fs_entity, 14);
+    strncat(file_path, fno.fname, 14);
 
-#ifdef DEBUG
-    Serial.print("path_level ");
-    Serial.print(path_level);
-    Serial.print(", num_dirs ");
-    Serial.print(items);
-    Serial.print(", seed ");
-    Serial.print(seed);
-    Serial.print(", rnd ");
-    Serial.print(rnd);
-    Serial.print(", in_num ");
-    Serial.print(in_number);
-    Serial.print(", path ");
-    Serial.println(file_path);
-#endif
+//#ifdef DEBUG
+    sprintf(str_temp, "%d path_lvl, %d items\r\n", path_level, items);
+    uart_puts(str_temp);
+    sprintf(str_temp, "%d seed, %d rnd, %d in_num\r\n", seed, rnd, in_number);
+    uart_puts(str_temp);
+    sprintf(str_temp, "%s path\r\n\r\n", file_path);
+    uart_puts(str_temp);
+//#endif
 
-    if (!sd.chdir(fs_entity)) {
-        play_file();
-        return 0;
-    } else {
+    if (fno.fattrib & AM_DIR) {
         path_level++;
-        if (path_level < 5)
-            file_find_random();
+        if (f_opendir(&dir, file_path) == FR_OK) {
+            if (path_level < 5) {
+                file_find_random();
+            }
+        } else {
+            uart_puts_P("err: f_opendir");
+            return 1;
+        }
+    } else {
+        play_file();
     }
+
     return 0;
 }
 
+/*
 void sleep_mgmt()
 {
     if (just_woken == 0) {
@@ -652,4 +675,3 @@ ISR(INT0_vect)
     }
 }
 */
-
