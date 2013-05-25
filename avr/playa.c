@@ -11,6 +11,7 @@
 
 #include "playa.h"
 #include "drivers/uart.h"
+#include "drivers/spi.h"
 #include "drivers/diskio.h"
 #include "drivers/vs1063.h"
 #include "drivers/ir_remote.h"
@@ -74,8 +75,9 @@ void setup()
     //wdt_enable(WDTO_8S);        // Enable watchdog: max 8 seconds
     //ir_init();
 
+    spi_init();
     vs_setup();
-    //vs_setup_local();
+    vs_setup_local();
 
     //vs_deselect_control();
     //vs_deselect_data();
@@ -132,7 +134,7 @@ void loop()
 }
 */
 
-void vs_setup_local()
+void vs_setup_local(void)
 {
     //initialize chip 
     vs_deselect_control();
@@ -142,9 +144,9 @@ void vs_setup_local()
     //the analog output swing
     vs_write_register(SCI_STATUS, SS_REFERENCE_SEL);
     // Declick: Slow sample rate for slow analog part startup
-    vs_write_register(SCI_AUDATA, 0, 10);       // 10 Hz
+    vs_write_register_hl(SCI_AUDATA, 0, 10);       // 10 Hz
     // Switch on the analog parts
-    vs_write_register(SCI_AUDATA, 31, 64);      // 8kHz
+    vs_write_register_hl(SCI_AUDATA, 31, 64);      // 8kHz
     vs_soft_reset();
     vs_set_volume(volume, volume);
 }

@@ -1,10 +1,8 @@
 
 #include <util/delay.h>
-
 #include "vs1063.h"
 #include "spi.h"
 
-/*
 // read the 16-bit value of a VS10xx register
 uint16_t vs_read_register(uint8_t address)
 {
@@ -13,11 +11,11 @@ uint16_t vs_read_register(uint8_t address)
     vs_deselect_data();
     vs_select_control();
     vs_wait();
-    SPI.transfer(VS_READ_COMMAND);
-    SPI.transfer(address);
-    aux = SPI.transfer(0xff);
+    spi_transfer(VS_READ_COMMAND);
+    spi_transfer(address);
+    aux = spi_transfer(0xff);
     resultvalue = aux << 8;
-    aux = SPI.transfer(0xff);
+    aux = spi_transfer(0xff);
     resultvalue |= aux;
     vs_deselect_control();
     vs_wait();
@@ -25,16 +23,16 @@ uint16_t vs_read_register(uint8_t address)
 }
 
 // write VS10xx register
-void vs_write_register(uint8_t address, uint8_t highbyte, uint8_t lowbyte)
+void vs_write_register_hl(uint8_t address, uint8_t highbyte, uint8_t lowbyte)
 {
     vs_deselect_data();
     vs_select_control();
     vs_wait();
     _delay_ms(2);
-    SPI.transfer(VS_WRITE_COMMAND);
-    SPI.transfer(address);
-    SPI.transfer(highbyte);
-    SPI.transfer(lowbyte);
+    spi_transfer(VS_WRITE_COMMAND);
+    spi_transfer(address);
+    spi_transfer(highbyte);
+    spi_transfer(lowbyte);
     vs_deselect_control();
     vs_wait();
 }
@@ -47,7 +45,7 @@ void vs_write_register(uint8_t address, uint16_t value)
 
     highbyte = (value & 0xff00) >> 8;
     lowbyte = value & 0x00ff;
-    vs_write_register(address, highbyte, lowbyte);
+    vs_write_register_hl(address, highbyte, lowbyte);
 }
 
 // read data rams
@@ -65,7 +63,6 @@ void vs_write_wramaddr(uint16_t address, uint16_t value)
     vs_write_register(SCI_WRAMADDR, address);
     vs_write_register(SCI_WRAM, value);
 }
-*/
 
 // wait for VS_DREQ to get HIGH before sending new data to SPI
 void vs_wait()
@@ -89,7 +86,6 @@ void vs_setup()
     vs_wait();
 }
 
-/*
 // soft reset of VS10xx (between songs)
 void vs_soft_reset()
 {
@@ -113,7 +109,6 @@ void vs_setup_i2s()
 void vs_set_volume(uint8_t leftchannel, uint8_t rightchannel)
 {
     // volume = dB/0.5
-    vs_write_register(SCI_VOL, leftchannel, rightchannel);
+    vs_write_register_hl(SCI_VOL, leftchannel, rightchannel);
 }
-*/
 

@@ -97,8 +97,8 @@
 #define ogg_gain_offset     0xc0ea
 
 uint16_t vs_read_register(uint8_t address);
-//void vs_write_register(uint8_t address, uint8_t highbyte, uint8_t lowbyte);
-//void vs_write_register(uint8_t address, uint16_t value);
+void vs_write_register(uint8_t address, uint16_t value);
+void vs_write_register_hl(uint8_t address, uint8_t highbyte, uint8_t lowbyte);
 
 uint16_t vs_read_wramaddr(uint16_t address);
 void vs_write_wramaddr(uint16_t address, uint16_t value);

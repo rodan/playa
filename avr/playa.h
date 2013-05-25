@@ -30,6 +30,8 @@
 void setup(void);
 void loop(void);
 
+
+void vs_setup_local(void);
 void check_ir(void);
 
 #endif

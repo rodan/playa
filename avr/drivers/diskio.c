@@ -73,13 +73,11 @@ int power_status (void)		/* Socket power state: 0=off, 1=on */
 static
 void power_on (void)
 {
-    spi_init();
 }
 
 static
 void power_off (void)
 {
-    spi_disable();
 }
 
 
