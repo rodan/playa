@@ -8,14 +8,17 @@
 //#define PIN_VBAT_DETECT A5      // battery voltage readout
 //#define PIN_RANDOM      A6      // seed the pseudo RNG by reading this unconnected pin
 
+#define PIN_JACK_DETECT 1       // detect if stereo jack is not connected
+#define PIN_VBAT_DETECT 5       // battery voltage readout
+#define PIN_RANDOM      6       // seed the pseudo RNG by reading this unconnected pin
+
 #define JACK_DETECT     0b00000010
 #define VBAT_DETECT     0b00100000
 #define P_RANDOM        0b01000000
 #define ANALOG_DDR      DDRC
 #define ANALOG_PIN      PINC
 
-//#define CARD_BUFF_SZ    512     // how much data to read from the uSD card in one go
-#define CARD_BUFF_SZ    64      // how much data to read from the uSD card in one go
+#define CARD_BUFF_SZ    128     // how much data to read from the uSD card in one go
 #define VS_BUFF_SZ      32      // how much data to send in one batch to VS1063
 #define MAX_PATH        40      // enough for 4 parent dirs for one file
 

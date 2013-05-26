@@ -54,7 +54,7 @@ void spi_transmit_sync(const uint8_t * dataout, const uint8_t begin, const uint8
 // Shift full array to target device without receiving any byte
 {
     uint8_t i;
-    for (i = begin; i < end; i++) {
+    for (i = begin; i <= end; i++) {
         SPDR = dataout[i];
         while ((SPSR & (1 << SPIF)) == 0) ;
     }

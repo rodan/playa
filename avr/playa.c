@@ -11,6 +11,7 @@
 
 #include "playa.h"
 #include "drivers/timer.h"
+#include "drivers/adc.h"
 #include "drivers/uart.h"
 #include "drivers/spi.h"
 #include "drivers/diskio.h"
@@ -59,13 +60,11 @@ int main(void)
     for (;;) {
         wdt_reset();
         ui_ir_decode();
-        /*
-           if (play_mode != STOP) {
+        if (play_mode != STOP) {
            env_check();
-           } else {
+        } else {
            sleep_mgmt();
-           }
-         */
+        }
         ui();
     }
 }
@@ -140,7 +139,6 @@ uint8_t ui_ir_decode(void)
             ir_resume();
             return 1;
         }
-
 #ifdef DEBUG
         sprintf(str_temp, "%ld\r\n", results.value);
         uart_puts(str_temp);
@@ -312,7 +310,6 @@ uint8_t ui_ir_decode(void)
     return 0;
 }
 
-/*
 void env_check(void)
 {
     uint16_t vbat, jack_detect;
@@ -341,7 +338,7 @@ void env_check(void)
     for (i = 0; i < vbat / 10; i++) {
         seed += analogRead(PIN_RANDOM);
     }
-    randomSeed(seed);
+    srandom(seed);
     for (i = 0; i < vbat / 10; i++) {
         random();               // apparently randomSeed does not provide proper randomness
     }
@@ -351,7 +348,6 @@ void env_check(void)
         play_mode = STOP;
     }
 }
-*/
 
 void ui(void)
 {
@@ -412,7 +408,8 @@ uint8_t play_file(void)
     for (;;) {
         res = f_read(&file, cbuff, CARD_BUFF_SZ, &r);
         if (res || r == 0) {
-            uart_puts_P("E f_read\r\n");
+            //sprintf(str_temp, "E f_read 0x%x\r\n", res);
+            //uart_puts(str_temp);
             delay(100);
             break;              // file open err or EOF
         }
@@ -423,7 +420,7 @@ uint8_t play_file(void)
             // sometimes the decoder never gets busy while reading non-music data
             // so we exit here
             if (vs_read_register(SCI_HDAT1) == 0) {
-                uart_puts_P("E HDAT1\r\n");
+                uart_puts_P("HDAT1 err\r\n");
                 delay(100);
                 f_close(&file);
                 vs_write_register(SCI_MODE, SM_CANCEL);
@@ -476,7 +473,7 @@ uint8_t play_file(void)
             }
             // send up to 32bytes after a VS_DREQ check
             vs_wait();
-            spi_transmit_sync(cbuff,i,vs_buff_end+1);
+            spi_transmit_sync(cbuff, i, vs_buff_end);
             i += vs_buff_end - i + 1;
             //while (i <= vs_buff_end) {
             //    spi_transfer(cbuff[i]);
@@ -578,6 +575,8 @@ uint8_t file_find_random(void)
         if (f_opendir(&dir, file_path) == FR_OK) {
             if (path_level < 5) {
                 file_find_random();
+            } else {
+                return 1;
             }
         } else {
             return 1;
