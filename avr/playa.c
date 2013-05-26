@@ -47,7 +47,7 @@ uint16_t seed;
 
 // sleep states
 volatile uint8_t just_woken;
-uint8_t sleeping = 0;
+volatile uint8_t sleeping = 0;
 uint32_t wake_up_time = 0;      // systemtime when the uC was woken up
 uint16_t wake_up_delay = 4000;  // the delay until the uC is powered down again
 
@@ -84,7 +84,10 @@ void setup()
 //#endif
 
     wdt_enable(WDTO_8S);        // Enable watchdog: max 8 seconds
+    cli();
     power_twi_disable();
+    power_timer1_disable();
+    sei();
     ir_init();
     spi_init();
     vs_setup();
@@ -191,10 +194,6 @@ uint8_t ui_ir_decode(void)
                 just_woken = 0;
                 wake_up_time = 0;
                 play_mode = PLAY_RANDOM;
-                vs_deassert_xreset();
-                vs_setup();
-                vs_setup_local();
-                wdt_enable(WDTO_8S);
             }
             break;
         case 56:               // AV
@@ -394,7 +393,7 @@ void get_album_path(void)
 
 uint8_t play_file(void)
 {
-    uint16_t i, r, vs_buff_end;
+    uint16_t i, r, tx_len;
     uint8_t count = 0;
     uint8_t checked = 0;
     uint16_t codec = 0x0eaa;    // something unused
@@ -416,10 +415,11 @@ uint8_t play_file(void)
     for (;;) {
         res = f_read(&file, cbuff, CARD_BUFF_SZ, &r);
         if (res || r == 0) {
+            vs_deselect_data();
             //sprintf(str_temp, "E f_read 0x%x\r\n", res);
             //uart_puts(str_temp);
             //vs_fill(2052);
-            vs_write_register(SCI_MODE, SM_CANCEL);
+            //vs_write_register(SCI_MODE, SM_CANCEL);
             //vs_fill(32);
             delay(100);
             break;              // file open err or EOF
@@ -479,26 +479,24 @@ uint8_t play_file(void)
                 vs_select_data();       // Pull XDCS low
             }                   // the mint rubbing function
 
-            vs_buff_end = i + VS_BUFF_SZ - 1;
-            if (vs_buff_end > r - 1) {
-                vs_buff_end = r - 1;
+            if (VS_BUFF_SZ > r) {
+                tx_len = r;
+            } else if (i + VS_BUFF_SZ > r) {
+                tx_len = r % VS_BUFF_SZ;
+            } else {
+                tx_len = VS_BUFF_SZ;
             }
+
             // send up to 32bytes after a VS_DREQ check
             vs_wait();
-            spi_transmit_sync(cbuff, i, vs_buff_end);
-            i += vs_buff_end - i + 1;
-            //while (i <= vs_buff_end) {
-            //    spi_transfer(cbuff[i]);
-            //    i++;
-            //}
+            spi_transmit_sync(cbuff, i, tx_len);
+            i += tx_len;
         }
         vs_wait();
         vs_deselect_data();
     }
 
     vs_write_register(SCI_MODE, SM_CANCEL);
-    //SendZerosToVS10xx();
-
     f_close(&file);
     return 0;
 }
@@ -633,8 +631,17 @@ void pwr_down(void)
     // wake up on remote control input (external INT0 interrupt)
     EICRA = 0;                  //Interrupt on low level
     EIMSK = (1 << INT0);        // enable INT0 interrupt
+    /*
+    PRR = ( (1 << PRTWI) |      // 1 to disable TWI
+            (0 << PRTIM2) |     // 1 to disable Timer/Counter2
+            (0 << PRTIM0) |     // 1 to disable Timer/Counter0
+            (1 << PRTIM1) |     // 1 to disable Timer/Counter1
+            (0 << PRSPI) |      // 1 to disable SPI
+            (0 << PRUSART0) |   // 1 to disable USART
+            (1 << PRADC) );     // 1 to disable ADC
+    */
     sei();
-
+    spi_disable();
     set_sleep_mode(SLEEP_MODE_PWR_DOWN);
     cli();
     sleep_enable();
@@ -642,9 +649,24 @@ void pwr_down(void)
     sleep_cpu();
     sleep_disable();
     sei();
+    wdt_enable(WDTO_8S);
     cli();
     EIMSK = 0;  // disable INT interrupt
+    /*
+    PRR = ( (1 << PRTWI) |      // 1 to disable TWI
+            (0 << PRTIM2) |     // 1 to disable Timer/Counter2
+            (0 << PRTIM0) |     // 1 to disable Timer/Counter0
+            (1 << PRTIM1) |     // 1 to disable Timer/Counter1
+            (0 << PRSPI) |      // 1 to disable SPI
+            (0 << PRUSART0) |   // 1 to disable USART
+            (0 << PRADC) );     // 1 to disable ADC
+    */
     sei();
+
+    spi_init();
+    vs_setup();
+    vs_setup_local();
+
     just_woken = 1;
     sleeping = 0;
 }

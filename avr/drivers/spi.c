@@ -1,5 +1,6 @@
 
 #include <avr/io.h>
+#include <avr/power.h>
 #include <avr/interrupt.h>
 
 #include "spi.h"
@@ -9,6 +10,8 @@ void spi_init(void)
 {
     PORT_SPI |= (DD_MOSI | DD_SS | DD_SCK);
     DDR_SPI |= (DD_MOSI | DD_SS | DD_SCK);
+
+    power_spi_enable();
 
     SPCR = ((0 << SPIE) |       // SPI interrupt enable
             (1 << SPE) |        // SPI enable
@@ -27,6 +30,7 @@ void spi_init(void)
 void spi_disable(void)
 {
     SPCR = 0;
+    power_spi_disable();
     DDR_SPI &= ~(DD_MOSI | DD_SS | DD_SCK);
     PORT_SPI &= ~(DD_MOSI | DD_SS | DD_SCK);
 }
@@ -50,11 +54,11 @@ void spi_transfer_sync(const uint8_t * dataout, uint8_t * datain, const uint8_t 
     }
 }
 
-void spi_transmit_sync(const uint8_t * dataout, const uint8_t begin, const uint8_t end)
+void spi_transmit_sync(const uint8_t * dataout, const uint8_t begin, const uint8_t len)
 // Shift full array to target device without receiving any byte
 {
     uint8_t i;
-    for (i = begin; i <= end; i++) {
+    for (i = begin; i < begin + len; i++) {
         SPDR = dataout[i];
         while ((SPSR & (1 << SPIF)) == 0) ;
     }
