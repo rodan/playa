@@ -46,12 +46,14 @@ char album_path[MAX_PATH];
 uint16_t seed;
 
 // sleep states
-volatile uint8_t just_woken = 0;
+volatile uint8_t just_woken;
 uint8_t sleeping = 0;
 uint32_t wake_up_time = 0;      // systemtime when the uC was woken up
-uint16_t wake_up_delay = 2000;  // the delay until the uC is powered down again
+uint16_t wake_up_delay = 4000;  // the delay until the uC is powered down again
 
+//#ifdef DEBUG
 char str_temp[64];
+//#endif
 
 int main(void)
 {
@@ -87,6 +89,8 @@ void setup()
     spi_init();
     vs_setup();
     vs_setup_local();
+
+    just_woken = 0;
 
     if (f_mount(0, &fs) == FR_OK) {
         dstatus = disk_initialize(0);
@@ -130,6 +134,7 @@ uint8_t ui_ir_decode(void)
 
         // if we woke up from sleep, only allow a power-up command
         if ((just_woken) && (results.value != 12)) {
+            //uart_puts_P("ignore\r\n");
             ir_resume();
             return 1;
         }
@@ -182,6 +187,7 @@ uint8_t ui_ir_decode(void)
         case 12:               // power
             // wake up from pwr_down
             if (just_woken == 1) {
+                //uart_puts_P("up\r\n");
                 just_woken = 0;
                 wake_up_time = 0;
                 play_mode = PLAY_RANDOM;
@@ -396,8 +402,10 @@ uint8_t play_file(void)
     uint8_t replaygain_volume;
     FRESULT res;
 
+//#define DEBUG
     uart_puts(file_path);
     uart_puts_P("\r\n");
+//#endif
 
     vs_soft_reset();
 
@@ -591,11 +599,14 @@ uint8_t file_find_random(void)
 void sleep_mgmt(void)
 {
     if (just_woken == 0) {
+        //uart_puts_P("tmout\r\n");
         pwr_down();
     } else if (just_woken == 1) {
         if (wake_up_time == 0) {
             wake_up_time = millis();
         } else if (millis() - wake_up_time > wake_up_delay) {
+            //sprintf(str_temp, "%ld %ld\r\n", millis(), wake_up_time);
+            //uart_puts(str_temp);
             // if an IR signal woke up the uC from sleep, but that signal was not 
             // a power sequence then go back to sleep.
             pwr_down();
@@ -606,30 +617,31 @@ void sleep_mgmt(void)
 // used when STOP command is issued
 void pwr_down(void)
 {
-
     wake_up_time = 0;
     sleeping = 1;
     vs_assert_xreset();
     wdt_disable();
 
+    //uart_puts_P("halt\r\n");
+    //delay(1000);
+    
     cli();
     // wake up on remote control input (external INT0 interrupt)
     EICRA = 0;                  //Interrupt on low level
     EIMSK = (1 << INT0);        // enable INT0 interrupt
+    sei();
 
-    do {
-        sleeping = 1;
-        set_sleep_mode(SLEEP_MODE_PWR_DOWN);
-        cli();
-        sleep_enable();
-        sei();
-        sleep_cpu();
-        sleep_disable();
-        EIMSK = 0;              // disable INT0/1 interrupts
-        sei();
-    } while (0);
-
-    EIMSK = 0;                  // disable INT0/1 interrupts
+    set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+    cli();
+    sleep_enable();
+    sei();
+    sleep_cpu();
+    sleep_disable();
+    sei();
+    cli();
+    EIMSK = 0;  // disable INT interrupt
+    sei();
+    just_woken = 1;
     sleeping = 0;
 }
 
