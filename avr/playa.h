@@ -19,7 +19,6 @@
 #define ANALOG_PIN      PINC
 
 #define CARD_BUFF_SZ    128     // how much data to read from the uSD card in one go
-#define VS_BUFF_SZ      32      // how much data to send in one batch to VS1063
 #define MAX_PATH        40      // enough for 4 parent dirs for one file
 
 #define CMD_NULL        0x00

@@ -1,4 +1,5 @@
 
+#include <string.h>
 #include "vs1063.h"
 #include "timer.h"
 #include "spi.h"
@@ -67,7 +68,8 @@ void vs_write_wramaddr(uint16_t address, uint16_t value)
 // wait for VS_DREQ to get HIGH before sending new data to SPI
 void vs_wait()
 {
-    while (!(VS_DREQ_PIN & VS_DREQ)) {};
+    while (!(VS_DREQ_PIN & VS_DREQ)) {
+    };
 }
 
 // set up pins
@@ -102,7 +104,7 @@ void vs_setup_i2s()
     //set GPIO0 as output
     vs_write_wramaddr(0xc017, 0x00f0);
     //enable I2S (MCLK enabled, 48kHz sample rate)
-    vs_write_wramaddr(0xc040, 0x000c); // I2S_CF_MCLK_ENA | I2S_CF_ENA
+    vs_write_wramaddr(0xc040, 0x000c);  // I2S_CF_MCLK_ENA | I2S_CF_ENA
 }
 
 // set VS10xx volume attenuation    0x00 lound - 0xfe silent
@@ -112,3 +114,21 @@ void vs_set_volume(uint8_t leftchannel, uint8_t rightchannel)
     vs_write_register_hl(SCI_VOL, leftchannel, rightchannel);
 }
 
+void vs_fill(uint16_t len)
+{
+    uint8_t buff[VS_BUFF_SZ];
+    uint8_t fill;
+    uint16_t i = 0;
+
+    fill = vs_read_wramaddr(endFillByte);
+    memset(buff, fill, VS_BUFF_SZ);
+
+    vs_select_data();
+    for (i = 0; i < (len / VS_BUFF_SZ); i++) {
+        vs_wait();
+        spi_transmit_sync(buff, 0, VS_BUFF_SZ - 1);
+    }
+    vs_wait();
+    spi_transmit_sync(buff, 0, (len % VS_BUFF_SZ) - 1);
+    vs_deselect_data();
+}

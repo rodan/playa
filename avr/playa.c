@@ -418,6 +418,9 @@ uint8_t play_file(void)
         if (res || r == 0) {
             //sprintf(str_temp, "E f_read 0x%x\r\n", res);
             //uart_puts(str_temp);
+            //vs_fill(2052);
+            vs_write_register(SCI_MODE, SM_CANCEL);
+            //vs_fill(32);
             delay(100);
             break;              // file open err or EOF
         }
@@ -446,6 +449,7 @@ uint8_t play_file(void)
                 //if ((ir_cmd == CMD_EXIT) || (codec == 0)) {
                 if (ir_cmd == CMD_EXIT) {
                     vs_write_register(SCI_MODE, SM_CANCEL);
+                    //vs_fill(2052);
                     ir_cmd = CMD_NULL;
                     f_close(&file);
                     delay(100);

@@ -34,6 +34,8 @@
 #define vs_assert_xreset()      VS_XRESET_PORT &= ~VS_XRESET
 #define vs_deassert_xreset()    VS_XRESET_PORT |= VS_XRESET
 
+#define VS_BUFF_SZ      32      // how much data to send in one batch to VS1063
+
 // VS10xx SCI read and write commands
 #define VS_WRITE_COMMAND    0x02
 #define VS_READ_COMMAND     0x03
@@ -99,15 +101,14 @@
 uint16_t vs_read_register(uint8_t address);
 void vs_write_register(uint8_t address, uint16_t value);
 void vs_write_register_hl(uint8_t address, uint8_t highbyte, uint8_t lowbyte);
-
 uint16_t vs_read_wramaddr(uint16_t address);
 void vs_write_wramaddr(uint16_t address, uint16_t value);
 
 void vs_wait(void);
-
 void vs_setup(void);
 void vs_setup_i2s(void);
 void vs_soft_reset(void);
 void vs_set_volume(uint8_t leftchannel, uint8_t rightchannel);
+void vs_fill(uint16_t len);
 
 #endif
