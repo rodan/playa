@@ -8,9 +8,9 @@
 #include <avr/wdt.h>
 #include <avr/sleep.h>
 #include <avr/power.h>
-#include <util/delay.h>
 
 #include "playa.h"
+#include "drivers/timer.h"
 #include "drivers/uart.h"
 #include "drivers/spi.h"
 #include "drivers/diskio.h"
@@ -25,7 +25,7 @@ uint8_t volume = 40;            // as negative attenuation. can go from 0x00 lou
 
 // infrared remote
 uint32_t result_last = 11111;
-uint16_t ir_delay = 2000;       // delay between repeated button presses
+uint16_t ir_delay = 400;        // delay between repeated button presses
 uint32_t ir_delay_prev = 0;
 uint8_t ir_cmd;
 uint8_t play_mode = PLAY_RANDOM;
@@ -60,26 +60,24 @@ int main(void)
         wdt_reset();
         ui_ir_decode();
         /*
-        if (play_mode != STOP) {
-            env_check();
-        } else {
-            sleep_mgmt();
-        }
-        */
+           if (play_mode != STOP) {
+           env_check();
+           } else {
+           sleep_mgmt();
+           }
+         */
         ui();
     }
 }
 
 void setup()
 {
-
-    _delay_ms(1000);            // switch/jumper/ammeter debounce
-
+    timer_init();
     sei();
 
 //#ifdef DEBUG
     uart_init(UART_BAUD_SELECT(9600, F_CPU));
-    uart_puts_P("?"); //XXX remove
+    uart_puts_P("?");
 //#else
 //    power_usart0_disable();
 //#endif
@@ -93,7 +91,7 @@ void setup()
 
     if (f_mount(0, &fs) == FR_OK) {
         dstatus = disk_initialize(0);
-        if (dstatus & ( STA_NOINIT | STA_NODISK | STA_PROTECT )) {
+        if (dstatus & (STA_NOINIT | STA_NODISK | STA_PROTECT)) {
             play_mode = STOP;
         }
     } else {
@@ -124,7 +122,7 @@ uint8_t ui_ir_decode(void)
     uint32_t now;
     int8_t ir_number = -1;
 
-    //XXX now = millis();
+    now = millis();
 
     if (ir_decode(&results)) {
 
@@ -137,16 +135,16 @@ uint8_t ui_ir_decode(void)
             return 1;
         }
 
-        /*
-           if ((just_woken == 0) && (results.value == result_last)
-           && (now - ir_delay_prev < ir_delay)) {
-           ir_resume();
-           return 1;
-           }
-         */
+        if ((just_woken == 0) && (results.value == result_last)
+            && (now - ir_delay_prev < ir_delay)) {
+            ir_resume();
+            return 1;
+        }
 
+#ifdef DEBUG
         sprintf(str_temp, "%ld\r\n", results.value);
         uart_puts(str_temp);
+#endif
 
         switch (results.value) {
             // RC5 codes
@@ -257,23 +255,21 @@ uint8_t ui_ir_decode(void)
         case 28:
         case 0x90:             // ch+
             ir_cmd = CMD_EXIT;
-            vs_write_register(SCI_MODE, SM_CANCEL);
             break;
         case 29:
         case 0x890:            // ch-
             in_number++;
             ir_cmd = CMD_EXIT;
-            vs_write_register(SCI_MODE, SM_CANCEL);
             break;
 //        case 36:               // record
 //            break;
         case 54:
         case 0xa90:            // stop
             if (play_mode != STOP) {    // do this loop only once
-                vs_write_register(SCI_MODE, SM_CANCEL);
+                //vs_write_register(SCI_MODE, SM_CANCEL);
                 // to minimize the power-off transient
                 vs_set_volume(0xfe, 0xfe);
-                _delay_ms(10);
+                delay(10);
                 play_mode = STOP;
                 ir_cmd = CMD_EXIT;
             }
@@ -296,30 +292,28 @@ uint8_t ui_ir_decode(void)
             break;
 //        case : // fwd
 //            break;
-//        default:
-//            uart_putsln(results.value);
-//            break;
-        }                       // case
+        default:
+            break;
+        }                       // switch
 
         // vol+ and vol- should not care about ir_delay
         if ((results.value != 11111) && (results.value != 16)
             && (results.value != 17) && (results.value != 0xc90) &&
             (results.value != 0x490)) {
             result_last = results.value;
-            //XXX ir_delay_prev = now;
+            ir_delay_prev = millis();
         }
         // get a number from the ir remote
         if (ir_number > -1) {
             in_number = in_number * 10 + ir_number;
         }
-
         ir_resume();            // Receive the next keypress
     }
     return 0;
 }
 
 /*
-void env_check()
+void env_check(void)
 {
     uint16_t vbat, jack_detect;
     uint8_t i;
@@ -406,23 +400,31 @@ uint8_t play_file(void)
     uint8_t replaygain_volume;
     FRESULT res;
 
+    uart_puts(file_path);
+    uart_puts_P("\r\n");
+
     vs_soft_reset();
 
     if (f_open(&file, file_path, FA_OPEN_EXISTING | FA_READ)) {
-        uart_puts_P("err f_open");
         return 1;
     }
 
     for (;;) {
         res = f_read(&file, cbuff, CARD_BUFF_SZ, &r);
-        if (res || r == 0) break; // file open err or EOF
+        if (res || r == 0) {
+            uart_puts_P("E f_read\r\n");
+            delay(100);
+            break;              // file open err or EOF
+        }
         if (!checked)
             count++;
-        if (!checked && count > 10) {
+        if (!checked && count > 100) {
             vs_deselect_data();
             // sometimes the decoder never gets busy while reading non-music data
             // so we exit here
             if (vs_read_register(SCI_HDAT1) == 0) {
+                uart_puts_P("E HDAT1\r\n");
+                delay(100);
                 f_close(&file);
                 vs_write_register(SCI_MODE, SM_CANCEL);
                 return 1;
@@ -436,10 +438,12 @@ uint8_t play_file(void)
                 vs_deselect_data();     // Release the SDI bus
                 wdt_reset();
                 ui_ir_decode();
-                if ((ir_cmd == CMD_EXIT) || (codec == 0)) {
-                    f_close(&file);
+                //if ((ir_cmd == CMD_EXIT) || (codec == 0)) {
+                if (ir_cmd == CMD_EXIT) {
+                    vs_write_register(SCI_MODE, SM_CANCEL);
                     ir_cmd = CMD_NULL;
-                    //vs_write_register(SCI_MODE, SM_CANCEL);
+                    f_close(&file);
+                    delay(100);
                     return 0;
                 }
                 if (!checked && count > 1) {
@@ -471,11 +475,13 @@ uint8_t play_file(void)
                 vs_buff_end = r - 1;
             }
             // send up to 32bytes after a VS_DREQ check
-            //spi_transmit_sync();
-            while (i <= vs_buff_end) {
-                spi_transfer(cbuff[i]);
-                i++;
-            }
+            vs_wait();
+            spi_transmit_sync(cbuff,i,vs_buff_end+1);
+            i += vs_buff_end - i + 1;
+            //while (i <= vs_buff_end) {
+            //    spi_transfer(cbuff[i]);
+            //    i++;
+            //}
         }
         vs_wait();
         vs_deselect_data();
@@ -529,9 +535,6 @@ uint8_t file_find_random(void)
         items++;
     }
 
-    sprintf(str_temp, "%d items\r\n", items);
-    uart_puts(str_temp);
-
     // rewind dir
     f_readdir(&dir, NULL);
 
@@ -552,8 +555,10 @@ uint8_t file_find_random(void)
 
     for (i = 1; i <= rnd; i++) {
         res = f_readdir(&dir, &fno);
+#ifdef DEBUG
         uart_puts(fno.fname);
         uart_puts_P("\r\n");
+#endif
     }
 
     strncat(file_path, "/", 2);
@@ -575,7 +580,6 @@ uint8_t file_find_random(void)
                 file_find_random();
             }
         } else {
-            uart_puts_P("err: f_opendir");
             return 1;
         }
     } else {
@@ -585,8 +589,7 @@ uint8_t file_find_random(void)
     return 0;
 }
 
-/*
-void sleep_mgmt()
+void sleep_mgmt(void)
 {
     if (just_woken == 0) {
         pwr_down();
@@ -602,7 +605,7 @@ void sleep_mgmt()
 }
 
 // used when STOP command is issued
-void pwr_down()
+void pwr_down(void)
 {
 
     wake_up_time = 0;
@@ -630,8 +633,6 @@ void pwr_down()
     EIMSK = 0;                  // disable INT0/1 interrupts
     sleeping = 0;
 }
-
-*/
 
 ISR(INT0_vect)
 {

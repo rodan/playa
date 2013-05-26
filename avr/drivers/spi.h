@@ -13,8 +13,8 @@
 
 void spi_init(void);
 void spi_disable(void);
-//void spi_transfer_sync(uint8_t * dataout, uint8_t * datain, uint8_t len);
-//void spi_transmit_sync(uint8_t * dataout, uint8_t len);
+void spi_transfer_sync(const uint8_t * dataout, uint8_t * datain, const uint8_t len);
+void spi_transmit_sync(const uint8_t * dataout, const uint8_t begin, const uint8_t end);
 //uint8_t spi_fast_shift (uint8_t data);
 uint8_t spi_transfer(uint8_t data);
 

@@ -20,13 +20,25 @@
 #define MAX_PATH        40      // enough for 4 parent dirs for one file
 
 #define CMD_NULL        0x00
-#define CMD_EXIT        0x01
-#define CMD_PAUSE       0x02
+#define CMD_EXIT        0xEE
+#define CMD_PAUSE       0xAA
 
 #define STOP            0x10
 #define PLAY_RANDOM     0x11
 #define SWITCH_TO_ALBUM 0x12
 #define PLAY_ALBUM      0x13
+
+#ifndef cbi
+#define cbi(sfr, bit) (_SFR_BYTE(sfr) &= ~_BV(bit))
+#endif
+#ifndef sbi
+#define sbi(sfr, bit) (_SFR_BYTE(sfr) |= _BV(bit))
+#endif
+
+#define clockCyclesPerMicrosecond() ( F_CPU / 1000000L )
+#define clockCyclesToMicroseconds(a) ( (a) / clockCyclesPerMicrosecond() )
+#define microsecondsToClockCycles(a) ( (a) * clockCyclesPerMicrosecond() )
+
 
 void setup(void);
 void loop(void);
@@ -37,6 +49,9 @@ uint8_t file_find_next(void);
 void get_album_path(void);
 void vs_setup_local(void);
 void check_ir(void);
+void sleep_mgmt(void);
+void pwr_down(void);
+void env_check(void);
 void ui(void);
 
 #endif

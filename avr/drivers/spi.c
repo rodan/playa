@@ -39,7 +39,7 @@ uint8_t spi_transfer(uint8_t data)
     return SPDR;
 }
 
-void spi_transfer_sync(uint8_t * dataout, uint8_t * datain, uint8_t len)
+void spi_transfer_sync(const uint8_t * dataout, uint8_t * datain, const uint8_t len)
 // Shift full array through target device
 {
     uint8_t i;
@@ -50,11 +50,11 @@ void spi_transfer_sync(uint8_t * dataout, uint8_t * datain, uint8_t len)
     }
 }
 
-void spi_transmit_sync(uint8_t * dataout, uint8_t len)
+void spi_transmit_sync(const uint8_t * dataout, const uint8_t begin, const uint8_t end)
 // Shift full array to target device without receiving any byte
 {
     uint8_t i;
-    for (i = 0; i < len; i++) {
+    for (i = begin; i < end; i++) {
         SPDR = dataout[i];
         while ((SPSR & (1 << SPIF)) == 0) ;
     }

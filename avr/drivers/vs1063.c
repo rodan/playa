@@ -1,6 +1,6 @@
 
-#include <util/delay.h>
 #include "vs1063.h"
+#include "timer.h"
 #include "spi.h"
 
 // read the 16-bit value of a VS10xx register
@@ -28,7 +28,7 @@ void vs_write_register_hl(uint8_t address, uint8_t highbyte, uint8_t lowbyte)
     vs_deselect_data();
     vs_select_control();
     vs_wait();
-    _delay_ms(2);
+    delay(2);
     spi_transfer(VS_WRITE_COMMAND);
     spi_transfer(address);
     spi_transfer(highbyte);
@@ -82,7 +82,7 @@ void vs_setup()
     VS_XRESET_DDR |= VS_XRESET;
 
     vs_deassert_xreset();
-    _delay_ms(200);
+    delay(200);
     vs_wait();
 }
 
