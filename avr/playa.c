@@ -63,9 +63,9 @@ int main(void)
         wdt_reset();
         ui_ir_decode();
         if (play_mode != STOP) {
-           env_check();
+            env_check();
         } else {
-           sleep_mgmt();
+            sleep_mgmt();
         }
         ui();
     }
@@ -418,9 +418,7 @@ uint8_t play_file(void)
             vs_deselect_data();
             //sprintf(str_temp, "E f_read 0x%x\r\n", res);
             //uart_puts(str_temp);
-            //vs_fill(2052);
-            //vs_write_register(SCI_MODE, SM_CANCEL);
-            //vs_fill(32);
+            vs_end_play();
             delay(100);
             break;              // file open err or EOF
         }
@@ -432,9 +430,9 @@ uint8_t play_file(void)
             // so we exit here
             if (vs_read_register(SCI_HDAT1) == 0) {
                 uart_puts_P("HDAT1 err\r\n");
-                delay(100);
                 f_close(&file);
-                vs_write_register(SCI_MODE, SM_CANCEL);
+                vs_cancel_play();
+                delay(100);
                 return 1;
             }
         }
@@ -448,10 +446,9 @@ uint8_t play_file(void)
                 ui_ir_decode();
                 //if ((ir_cmd == CMD_EXIT) || (codec == 0)) {
                 if (ir_cmd == CMD_EXIT) {
-                    vs_write_register(SCI_MODE, SM_CANCEL);
-                    //vs_fill(2052);
                     ir_cmd = CMD_NULL;
                     f_close(&file);
+                    vs_cancel_play();
                     delay(100);
                     return 0;
                 }
@@ -622,26 +619,29 @@ void pwr_down(void)
     wake_up_time = 0;
     sleeping = 1;
     vs_assert_xreset();
-    wdt_disable();
+    delay(200);
+    //wdt_disable();
 
     //uart_puts_P("halt\r\n");
     //delay(1000);
-    
-    cli();
+
+    //cli();
     // wake up on remote control input (external INT0 interrupt)
-    EICRA = 0;                  //Interrupt on low level
-    EIMSK = (1 << INT0);        // enable INT0 interrupt
+    //EICRA = 0;                  //Interrupt on low level
+    //EIMSK = (1 << INT0);        // enable INT0 interrupt
     /*
-    PRR = ( (1 << PRTWI) |      // 1 to disable TWI
-            (0 << PRTIM2) |     // 1 to disable Timer/Counter2
-            (0 << PRTIM0) |     // 1 to disable Timer/Counter0
-            (1 << PRTIM1) |     // 1 to disable Timer/Counter1
-            (0 << PRSPI) |      // 1 to disable SPI
-            (0 << PRUSART0) |   // 1 to disable USART
-            (1 << PRADC) );     // 1 to disable ADC
-    */
-    sei();
-    spi_disable();
+       PRR = ( (1 << PRTWI) |      // 1 to disable TWI
+       (0 << PRTIM2) |     // 1 to disable Timer/Counter2
+       (0 << PRTIM0) |     // 1 to disable Timer/Counter0
+       (1 << PRTIM1) |     // 1 to disable Timer/Counter1
+       (0 << PRSPI) |      // 1 to disable SPI
+       (0 << PRUSART0) |   // 1 to disable USART
+       (1 << PRADC) );     // 1 to disable ADC
+     */
+    //sei();
+    //spi_disable();
+    delay(5000);
+    /*
     set_sleep_mode(SLEEP_MODE_PWR_DOWN);
     cli();
     sleep_enable();
@@ -649,26 +649,32 @@ void pwr_down(void)
     sleep_cpu();
     sleep_disable();
     sei();
-    wdt_enable(WDTO_8S);
-    cli();
-    EIMSK = 0;  // disable INT interrupt
-    /*
-    PRR = ( (1 << PRTWI) |      // 1 to disable TWI
-            (0 << PRTIM2) |     // 1 to disable Timer/Counter2
-            (0 << PRTIM0) |     // 1 to disable Timer/Counter0
-            (1 << PRTIM1) |     // 1 to disable Timer/Counter1
-            (0 << PRSPI) |      // 1 to disable SPI
-            (0 << PRUSART0) |   // 1 to disable USART
-            (0 << PRADC) );     // 1 to disable ADC
     */
-    sei();
+    //wdt_enable(WDTO_8S);
+    //cli();
+    //EIMSK = 0;                  // disable INT interrupt
+    /*
+       PRR = ( (1 << PRTWI) |      // 1 to disable TWI
+       (0 << PRTIM2) |     // 1 to disable Timer/Counter2
+       (0 << PRTIM0) |     // 1 to disable Timer/Counter0
+       (1 << PRTIM1) |     // 1 to disable Timer/Counter1
+       (0 << PRSPI) |      // 1 to disable SPI
+       (0 << PRUSART0) |   // 1 to disable USART
+       (0 << PRADC) );     // 1 to disable ADC
+     */
+    //sei();
 
-    spi_init();
+    //spi_init();
     vs_setup();
     vs_setup_local();
+    vs_fill(2052);
 
-    just_woken = 1;
+    // just_woken = 1; // this is right
     sleeping = 0;
+
+    just_woken = 0;
+    play_mode = PLAY_RANDOM;
+
 }
 
 ISR(INT0_vect)

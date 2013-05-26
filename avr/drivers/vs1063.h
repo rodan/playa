@@ -104,6 +104,9 @@ void vs_write_register_hl(uint8_t address, uint8_t highbyte, uint8_t lowbyte);
 uint16_t vs_read_wramaddr(uint16_t address);
 void vs_write_wramaddr(uint16_t address, uint16_t value);
 
+uint16_t vs_cancel_play(void);
+uint16_t vs_end_play(void);
+
 void vs_wait(void);
 void vs_setup(void);
 void vs_setup_i2s(void);

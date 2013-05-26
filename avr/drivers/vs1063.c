@@ -84,17 +84,16 @@ void vs_setup()
     VS_XRESET_DDR |= VS_XRESET;
 
     vs_deassert_xreset();
-    delay(200);
+    delay(400);
     vs_wait();
 }
 
-// soft reset of VS10xx (between songs)
 void vs_soft_reset()
 {
     vs_write_register(SCI_MODE, SM_SDINEW | SM_RESET);
+    delay(2);
     // set SC_MULT=3.5x, SC_ADD=1.0x
     vs_write_register(SCI_CLOCKF, 0x8800);
-    vs_wait();
 }
 
 // setup I2S (see page77 of the datasheet of vs1053 )
@@ -112,6 +111,47 @@ void vs_set_volume(uint8_t leftchannel, uint8_t rightchannel)
 {
     // volume = dB/0.5
     vs_write_register_hl(SCI_VOL, leftchannel, rightchannel);
+}
+
+// returns 0 on success
+// returns the old codec id on failure
+uint16_t vs_end_play(void)
+{
+    uint8_t i=0;
+    uint16_t rv;
+
+    if (vs_read_register(SCI_HDAT1) == 0x664c) {
+        vs_fill(12288);
+    } else {
+        vs_fill(2052);
+    }
+    vs_write_register(SCI_MODE, SM_CANCEL);
+    vs_fill(32);
+    while (vs_read_register(SCI_MODE) & SM_CANCEL) {
+        vs_fill(32);
+        i++;
+        if (i == 64) {
+            vs_soft_reset();
+            break;
+        }
+    }
+    rv = vs_read_register(SCI_HDAT1);
+    return rv;
+}
+
+uint16_t vs_cancel_play(void)
+{
+    uint16_t rv;
+
+    rv = vs_read_register(SCI_HDAT1);
+    vs_end_play();
+    if (rv == 0x664c) {
+        vs_fill(12288);
+    } else {
+        vs_fill(2052);
+    }
+    rv = vs_read_register(SCI_HDAT1);
+    return rv;
 }
 
 void vs_fill(uint16_t len)
