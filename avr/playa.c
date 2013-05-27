@@ -72,10 +72,11 @@ int main(void)
     }
 }
 
-void setup()
+void setup(void)
 {
     timer_init();
     sei();
+    delay(100); // debounce/allow caps to charge
 
 //#ifdef DEBUG
     uart_init(UART_BAUD_SELECT(9600, F_CPU));
