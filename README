@@ -1,19 +1,19 @@
- This project should end up with the following feature set:
+ This project has the following feature set:
 
    - a smallish and spartan music player that can work for weeks between charges
    - a 2Ah Li-poly cell and an integrated charger - 5V input
-   - ogg vorbis file decoding
-   - microSD (SDHC) is the storage medium. so fat32 and cards bigger than 4G should be supported
+   - decoding of ogg vorbis, mp3 files
+   - microSD (SDHC) is the storage medium. so fat32 and cards bigger than 4G.
 
   there are 2 components in this repository:
-  avr       - contains the C sourcecode for the firmware
+  avr       - contains the C source code for the firmware
   hardware  - open source hardware for the main board
 				the schematic is based on VLSI's Simple DSP Evaluation Board [1]
 
   Library dependencies for the avr code:
 
-   if using the 'v2' branch:
-      none (this is a standalone version)
+   if using the master branch:
+      none (this is a fully standalone version)
 
    if using the old 'arduino' branch:
       sdfatlib    http://code.google.com/p/sdfatlib/
@@ -21,14 +21,27 @@
       IRremote    https://github.com/shirriff/Arduino-IRremote
 
   Usage:
-   - an RC5 remote control provides the control (a Vishay TSOP IR receiver output goes to avr.D2).
-   - by default music files are played randomly. the REW button from the remote switches to album mode
+   - an RC5 remote control provides the control (a Vishay TSOP IR receiver's output goes to PD2).
+   - by default music files are played randomly. the following buttons are configured:
+   
+    VOL-        decrease volume
+    VOL+        increase volume
+    SUBTITLES   switch between 4 levels of spatial processing (for headphones)
+    REWIND      switch to album mode
+    CHANNEL-    switch to artist mode
+    CHANNEL+    next track in either of the modes
+    STOP        sends the player in low power shutdown mode. 
+                you need to start it again to exit this.
+    NUMBERS 0-9 select artist (which directory from the root of the filesystem to play)
+    AV          disable artist selection
+    
 
   Power consumption profile:
    - jumper/switch open - battery connected only to the charging circuit - < 3uA
-   - normal file decoding - 29-35 mA
-   - standby (after STOP ir command), IR sensor active - 900uA
-   - after uC woken up by ir sensor trigger, waiting for a POWER ir sequence (for max 2 seconds) - 4.5mA
+   - normal file decoding - 30-40 mA
+   - shutdown (after STOP ir command), IR sensor active - 800uA
+   - after uC woken up by ir sensor trigger, waiting for a POWER ir sequence (for max 2 seconds) - 4.5mA (this mode has been disabled in the code)
+   - if the stereo jack is unused or if the battery level goes below safe LiPo levels then the player enters shutdown mode.
 
   Known problems and limitations:
    - you should format the SDcard as Fat32 with largest available cluster size

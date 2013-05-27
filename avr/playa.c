@@ -138,7 +138,6 @@ uint8_t ui_ir_decode(void)
 
         // if we woke up from sleep, only allow a power-up command
         if ((just_woken) && (results.value != 12)) {
-            //uart_puts_P("ignore\r\n");
             ir_resume();
             return 1;
         }
@@ -191,7 +190,6 @@ uint8_t ui_ir_decode(void)
         case 12:               // power
             // wake up from pwr_down
             if (just_woken == 1) {
-                //uart_puts_P("up\r\n");
                 just_woken = 0;
                 wake_up_time = 0;
                 play_mode = PLAY_RANDOM;
@@ -271,10 +269,12 @@ uint8_t ui_ir_decode(void)
             in_number++;
             ir_cmd = CMD_EXIT;
             break;
+/*
         case 36:               // record
-            sprintf(str_temp, "SCI_MODE 0x%04x\r\n", vs_read_register(SCI_MODE));
-            uart_puts(str_temp);
+            //sprintf(str_temp, "SCI_MODE 0x%04x\r\n", vs_read_register(SCI_MODE));
+            //uart_puts(str_temp);
             break;
+*/
         case 54:
         case 0xa90:            // stop
             if (play_mode != STOP) {    // do this loop only once
