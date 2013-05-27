@@ -28,8 +28,9 @@ OPT_FLAGS = -Os -funsigned-char -funsigned-bitfields -fpack-struct -fshort-enums
 CFLAGS		+= $(CC_CMACH) $(CC_DMACH) $(CC_CFREQ) $(OPT_FLAGS)
 CFLAGS		+= -Wall -Wstrict-prototypes -Wextra -Wundef -Wno-unused-parameter -Wno-ignored-qualifiers
 CFLAGS		+= -Wl,-Map=output.map
+CFLAGS		+= -B/usr/avr/lib/avr5/
 #CFLAGS		+= -fno-force-addr -finline-limit=1 -fno-schedule-insns
-LDFLAGS		= -L/usr/avr/lib/avr5/
+LDFLAGS		=
 
 CFLAGS_REL	+= $(OPT_FLAGS) -fomit-frame-pointer
 LDFLAGS_REL	+= 
