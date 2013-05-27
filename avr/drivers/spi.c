@@ -10,8 +10,8 @@ void spi_init(void)
 {
     DDR_SPI &= ~( DD_MOSI | DD_MISO | DD_SS | DD_SCK );
     DDR_SPI |= (DD_MOSI | DD_SS | DD_SCK);
-    // enable pull-ups since this is not done in hardware 
-    PORT_SPI |= (DD_MOSI | DD_SS | DD_MISO | DD_SCK);
+    // enable pull-up since this is not done in hardware 
+    PORT_SPI |= DD_MISO;
 
     power_spi_enable();
 
