@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE eagle SYSTEM "eagle.dtd">
-<eagle version="6.1">
+<eagle version="6.4">
 <drawing>
 <settings>
 <setting alwaysvectorfont="no"/>
@@ -20528,19 +20528,6 @@ Source: http://www.lumberg.com/Produkte/PDFs/KLBR4.pdf</description>
 <pinref part="C32" gate="G$1" pin="2"/>
 </segment>
 </net>
-<net name="O_DETECT" class="0">
-<segment>
-<wire x1="208.28" y1="81.28" x2="226.06" y2="81.28" width="0.1524" layer="91"/>
-<label x="210.82" y="81.28" size="1.778" layer="95"/>
-<pinref part="U1" gate="G$1" pin="PC1(ADC1)"/>
-<pinref part="R24" gate="G$1" pin="1"/>
-</segment>
-<segment>
-<wire x1="347.98" y1="129.54" x2="355.6" y2="129.54" width="0.1524" layer="91"/>
-<label x="347.98" y="129.54" size="1.778" layer="95"/>
-<pinref part="X2" gate="G$1" pin="B"/>
-</segment>
-</net>
 <net name="N$17" class="0">
 <segment>
 <wire x1="170.18" y1="172.72" x2="160.02" y2="172.72" width="0.1524" layer="91"/>
@@ -20699,24 +20686,6 @@ Source: http://www.lumberg.com/Produkte/PDFs/KLBR4.pdf</description>
 <pinref part="U$3" gate="G$1" pin="VS"/>
 </segment>
 </net>
-<net name="VIN_DETECT" class="0">
-<segment>
-<wire x1="7.62" y1="154.94" x2="7.62" y2="152.4" width="0.1524" layer="91"/>
-<wire x1="7.62" y1="152.4" x2="7.62" y2="149.86" width="0.1524" layer="91"/>
-<wire x1="15.24" y1="147.32" x2="15.24" y2="152.4" width="0.1524" layer="91"/>
-<wire x1="7.62" y1="152.4" x2="15.24" y2="152.4" width="0.1524" layer="91"/>
-<junction x="7.62" y="152.4"/>
-<label x="7.62" y="152.4" size="1.778" layer="95"/>
-<pinref part="R8" gate="G$1" pin="2"/>
-<pinref part="R19" gate="G$1" pin="1"/>
-<pinref part="C17" gate="G$1" pin="1"/>
-</segment>
-<segment>
-<wire x1="208.28" y1="71.12" x2="220.98" y2="71.12" width="0.1524" layer="91"/>
-<label x="210.82" y="71.12" size="1.778" layer="95"/>
-<pinref part="U1" gate="G$1" pin="PC5(ADC5/SCL)"/>
-</segment>
-</net>
 <net name="SW1" class="0">
 <segment>
 <wire x1="208.28" y1="73.66" x2="220.98" y2="73.66" width="0.1524" layer="91"/>
@@ -20763,6 +20732,37 @@ Source: http://www.lumberg.com/Produkte/PDFs/KLBR4.pdf</description>
 <wire x1="208.28" y1="78.74" x2="220.98" y2="78.74" width="0.1524" layer="91"/>
 <label x="210.82" y="78.74" size="1.778" layer="95"/>
 <pinref part="U1" gate="G$1" pin="PC2(ADC2)"/>
+</segment>
+</net>
+<net name="JACK_DETECT" class="0">
+<segment>
+<wire x1="208.28" y1="81.28" x2="226.06" y2="81.28" width="0.1524" layer="91"/>
+<label x="210.82" y="81.28" size="1.778" layer="95"/>
+<pinref part="U1" gate="G$1" pin="PC1(ADC1)"/>
+<pinref part="R24" gate="G$1" pin="1"/>
+</segment>
+<segment>
+<wire x1="347.98" y1="129.54" x2="355.6" y2="129.54" width="0.1524" layer="91"/>
+<label x="347.98" y="129.54" size="1.778" layer="95"/>
+<pinref part="X2" gate="G$1" pin="B"/>
+</segment>
+</net>
+<net name="VBAT_DETECT" class="0">
+<segment>
+<wire x1="208.28" y1="71.12" x2="220.98" y2="71.12" width="0.1524" layer="91"/>
+<label x="210.82" y="71.12" size="1.778" layer="95"/>
+<pinref part="U1" gate="G$1" pin="PC5(ADC5/SCL)"/>
+</segment>
+<segment>
+<wire x1="7.62" y1="154.94" x2="7.62" y2="152.4" width="0.1524" layer="91"/>
+<wire x1="7.62" y1="152.4" x2="7.62" y2="149.86" width="0.1524" layer="91"/>
+<wire x1="15.24" y1="147.32" x2="15.24" y2="152.4" width="0.1524" layer="91"/>
+<wire x1="7.62" y1="152.4" x2="15.24" y2="152.4" width="0.1524" layer="91"/>
+<junction x="7.62" y="152.4"/>
+<label x="7.62" y="152.4" size="1.778" layer="95"/>
+<pinref part="R8" gate="G$1" pin="2"/>
+<pinref part="R19" gate="G$1" pin="1"/>
+<pinref part="C17" gate="G$1" pin="1"/>
 </segment>
 </net>
 </nets>
