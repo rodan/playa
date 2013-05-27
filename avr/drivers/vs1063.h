@@ -96,13 +96,14 @@
 
 // parametric_x addresses translated to WRAMADDR
 #define endFillByte         0xc0c6
+#define earSpeakerLevel     0xc0de
 #define ogg_gain_offset     0xc0ea
 
-uint16_t vs_read_register(uint8_t address);
-void vs_write_register(uint8_t address, uint16_t value);
-void vs_write_register_hl(uint8_t address, uint8_t highbyte, uint8_t lowbyte);
-uint16_t vs_read_wramaddr(uint16_t address);
-void vs_write_wramaddr(uint16_t address, uint16_t value);
+uint16_t vs_read_register(const uint8_t address);
+void vs_write_register(const uint8_t address, const uint16_t value);
+void vs_write_register_hl(const uint8_t address, const uint8_t highbyte, const uint8_t lowbyte);
+uint16_t vs_read_wramaddr(const uint16_t address);
+void vs_write_wramaddr(const uint16_t address, const uint16_t value);
 
 uint16_t vs_cancel_play(void);
 uint16_t vs_end_play(void);
@@ -111,7 +112,8 @@ void vs_wait(void);
 void vs_setup(void);
 void vs_setup_i2s(void);
 void vs_soft_reset(void);
-void vs_set_volume(uint8_t leftchannel, uint8_t rightchannel);
-void vs_fill(uint16_t len);
+void vs_set_volume(const uint8_t leftchannel, const uint8_t rightchannel);
+void vs_fill(const uint16_t len);
+void vs_ear_speaker(const uint8_t level);
 
 #endif

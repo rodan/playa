@@ -5,7 +5,7 @@
 #include "spi.h"
 
 // read the 16-bit value of a VS10xx register
-uint16_t vs_read_register(uint8_t address)
+uint16_t vs_read_register(const uint8_t address)
 {
     uint16_t resultvalue = 0;
     uint16_t aux = 0;
@@ -24,7 +24,7 @@ uint16_t vs_read_register(uint8_t address)
 }
 
 // write VS10xx register
-void vs_write_register_hl(uint8_t address, uint8_t highbyte, uint8_t lowbyte)
+void vs_write_register_hl(const uint8_t address, const uint8_t highbyte, const uint8_t lowbyte)
 {
     vs_deselect_data();
     vs_select_control();
@@ -39,7 +39,7 @@ void vs_write_register_hl(uint8_t address, uint8_t highbyte, uint8_t lowbyte)
 }
 
 // write VS10xx 16-bit SCI registers
-void vs_write_register(uint8_t address, uint16_t value)
+void vs_write_register(const uint8_t address, const uint16_t value)
 {
     uint8_t highbyte;
     uint8_t lowbyte;
@@ -50,7 +50,7 @@ void vs_write_register(uint8_t address, uint16_t value)
 }
 
 // read data rams
-uint16_t vs_read_wramaddr(uint16_t address)
+uint16_t vs_read_wramaddr(const uint16_t address)
 {
     uint16_t rv = 0;
     vs_write_register(SCI_WRAMADDR, address);
@@ -59,21 +59,21 @@ uint16_t vs_read_wramaddr(uint16_t address)
 }
 
 // write to data rams
-void vs_write_wramaddr(uint16_t address, uint16_t value)
+void vs_write_wramaddr(const uint16_t address, const uint16_t value)
 {
     vs_write_register(SCI_WRAMADDR, address);
     vs_write_register(SCI_WRAM, value);
 }
 
 // wait for VS_DREQ to get HIGH before sending new data to SPI
-void vs_wait()
+void vs_wait(void)
 {
     while (!(VS_DREQ_PIN & VS_DREQ)) {
     };
 }
 
 // set up pins
-void vs_setup()
+void vs_setup(void)
 {
     // input ports
     VS_DREQ_DDR &= ~VS_DREQ;
@@ -88,7 +88,7 @@ void vs_setup()
     vs_wait();
 }
 
-void vs_soft_reset()
+void vs_soft_reset(void)
 {
     vs_write_register(SCI_MODE, SM_SDINEW | SM_RESET);
     delay(2);
@@ -98,7 +98,7 @@ void vs_soft_reset()
 
 // setup I2S (see page77 of the datasheet of vs1053 )
 // also enables blinky lights on the simple dsp evaluation board
-void vs_setup_i2s()
+void vs_setup_i2s(void)
 {
     //set GPIO0 as output
     vs_write_wramaddr(0xc017, 0x00f0);
@@ -107,7 +107,7 @@ void vs_setup_i2s()
 }
 
 // set VS10xx volume attenuation    0x00 lound - 0xfe silent
-void vs_set_volume(uint8_t leftchannel, uint8_t rightchannel)
+void vs_set_volume(const uint8_t leftchannel, const uint8_t rightchannel)
 {
     // volume = dB/0.5
     vs_write_register_hl(SCI_VOL, leftchannel, rightchannel);
@@ -154,7 +154,7 @@ uint16_t vs_cancel_play(void)
     return rv;
 }
 
-void vs_fill(uint16_t len)
+void vs_fill(const uint16_t len)
 {
     uint8_t buff[VS_BUFF_SZ];
     uint8_t fill;
@@ -171,4 +171,15 @@ void vs_fill(uint16_t len)
     vs_wait();
     spi_transmit_sync(buff, 0, (len % VS_BUFF_SZ) - 1);
     vs_deselect_data();
+}
+
+// level    0 - disabled - suited for listening through loudspeakers
+//          1 - suited for listening to normal musical scores with headphones
+//          2 - less subtle than 1
+//          3 - for old and 'dry' recordings
+void vs_ear_speaker(const uint8_t level)
+{
+    const uint16_t ear_speaker_level[4] = { 0, 0x2ee0, 0x9470, 0xc350 };
+
+    vs_write_wramaddr(earSpeakerLevel, ear_speaker_level[level%4]);
 }

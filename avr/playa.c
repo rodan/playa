@@ -23,6 +23,7 @@
 uint8_t cbuff[CARD_BUFF_SZ];
 uint8_t volume = 40;            // as negative attenuation. can go from 0x00 lound - 0xfe silent
                      // 0xff is a special case (analog powerdown mode)
+uint8_t ear_speaker_lvl = 0;
 
 // infrared remote
 uint32_t result_last = 11111;
@@ -207,8 +208,14 @@ uint8_t ui_ir_decode(void)
           break;
         case 50: // zoom
             break;
+*/
         case 39: // sub
+            ear_speaker_lvl++;
+            vs_ear_speaker(ear_speaker_lvl);
+            //sprintf(str_temp, "ear 0x%04x\r\n", vs_read_wramaddr(earSpeakerLevel));
+            //uart_puts(str_temp);
             break;
+/*
         case 44: // slow
             break;
         case 60: // repeat
