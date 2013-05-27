@@ -29,7 +29,7 @@ CFLAGS		+= $(CC_CMACH) $(CC_DMACH) $(CC_CFREQ) $(OPT_FLAGS)
 CFLAGS		+= -Wall -Wstrict-prototypes -Wextra -Wundef -Wno-unused-parameter -Wno-ignored-qualifiers
 CFLAGS		+= -Wl,-Map=output.map
 #CFLAGS		+= -fno-force-addr -finline-limit=1 -fno-schedule-insns
-LDFLAGS		=
+LDFLAGS		= -L/usr/avr/lib/avr5/
 
 CFLAGS_REL	+= $(OPT_FLAGS) -fomit-frame-pointer
 LDFLAGS_REL	+= 

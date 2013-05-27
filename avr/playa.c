@@ -264,8 +264,10 @@ uint8_t ui_ir_decode(void)
             in_number++;
             ir_cmd = CMD_EXIT;
             break;
-//        case 36:               // record
-//            break;
+        case 36:               // record
+            sprintf(str_temp, "SCI_MODE 0x%04x\r\n", vs_read_register(SCI_MODE));
+            uart_puts(str_temp);
+            break;
         case 54:
         case 0xa90:            // stop
             if (play_mode != STOP) {    // do this loop only once
@@ -393,13 +395,14 @@ void get_album_path(void)
 
 uint8_t play_file(void)
 {
-    uint16_t i, r, tx_len;
+    uint16_t i, tx_len;
     uint8_t count = 0;
     uint8_t checked = 0;
     uint16_t codec = 0x0eaa;    // something unused
     int16_t replaygain_offset = 0;
     uint8_t replaygain_volume;
     FRESULT res;
+    UINT r;
 
 //#define DEBUG
     uart_puts(file_path);
@@ -526,7 +529,6 @@ uint8_t file_find_next(void)
 
 uint8_t file_find_random(void)
 {
-    FRESULT res;
     FILINFO fno;
 
     uint16_t i = 0, items = 0, rnd;
@@ -558,7 +560,7 @@ uint8_t file_find_random(void)
     }
 
     for (i = 1; i <= rnd; i++) {
-        res = f_readdir(&dir, &fno);
+        f_readdir(&dir, &fno);
 #ifdef DEBUG
         uart_puts(fno.fname);
         uart_puts_P("\r\n");
@@ -620,7 +622,7 @@ void pwr_down(void)
     sleeping = 1;
     vs_assert_xreset();
     delay(200);
-    //wdt_disable();
+    wdt_disable();
 
     //uart_puts_P("halt\r\n");
     //delay(1000);
@@ -640,7 +642,7 @@ void pwr_down(void)
      */
     //sei();
     //spi_disable();
-    delay(5000);
+    delay(10000);
     /*
     set_sleep_mode(SLEEP_MODE_PWR_DOWN);
     cli();
