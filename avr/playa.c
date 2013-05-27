@@ -618,70 +618,67 @@ void sleep_mgmt(void)
 // used when STOP command is issued
 void pwr_down(void)
 {
-    wake_up_time = 0;
-    sleeping = 1;
-    vs_assert_xreset();
-    delay(200);
-    wdt_disable();
 
-    //uart_puts_P("halt\r\n");
-    //delay(1000);
+    // recovery from low power land is not really functional
+    // so it gets commented out
+
+    wake_up_time = 0;
+    vs_assert_xreset();
+    wdt_disable();
+    sleeping = 1;
 
     //cli();
     // wake up on remote control input (external INT0 interrupt)
     //EICRA = 0;                  //Interrupt on low level
     //EIMSK = (1 << INT0);        // enable INT0 interrupt
-    /*
-       PRR = ( (1 << PRTWI) |      // 1 to disable TWI
-       (0 << PRTIM2) |     // 1 to disable Timer/Counter2
-       (0 << PRTIM0) |     // 1 to disable Timer/Counter0
-       (1 << PRTIM1) |     // 1 to disable Timer/Counter1
-       (0 << PRSPI) |      // 1 to disable SPI
-       (0 << PRUSART0) |   // 1 to disable USART
-       (1 << PRADC) );     // 1 to disable ADC
-     */
     //sei();
-    //spi_disable();
-    delay(10000);
-    /*
+
+    spi_disable();
+    power_all_disable();
+
+    // proper sleep_enable sequence. see /usr/avr/include/avr/sleep.h
     set_sleep_mode(SLEEP_MODE_PWR_DOWN);
-    cli();
-    sleep_enable();
-    sei();
-    sleep_cpu();
+    for (;;) {
+        cli();
+        sleep_enable();
+        sei();
+        sleep_cpu();
+    }
+
+    /*
     sleep_disable();
     sei();
-    */
-    //wdt_enable(WDTO_8S);
-    //cli();
-    //EIMSK = 0;                  // disable INT interrupt
-    /*
-       PRR = ( (1 << PRTWI) |      // 1 to disable TWI
-       (0 << PRTIM2) |     // 1 to disable Timer/Counter2
-       (0 << PRTIM0) |     // 1 to disable Timer/Counter0
-       (1 << PRTIM1) |     // 1 to disable Timer/Counter1
-       (0 << PRSPI) |      // 1 to disable SPI
-       (0 << PRUSART0) |   // 1 to disable USART
-       (0 << PRADC) );     // 1 to disable ADC
-     */
-    //sei();
 
-    //spi_init();
+    wdt_enable(WDTO_8S);
+    cli();
+    EIMSK = 0;                  // disable INT interrupt
+    sei();
+
+    spi_init();
     vs_setup();
-    vs_setup_local();
-    vs_fill(2052);
 
-    // just_woken = 1; // this is right
+    // initialize chip
+    vs_deselect_control();
+    vs_deselect_data();
+    vs_deassert_xreset();
+    delay(500);
+    vs_write_register(SCI_CLOCKF, 0x8800);
+    vs_write_register(SCI_STATUS, SS_REFERENCE_SEL);
+    vs_write_register_hl(SCI_AUDATA, 31, 64);   // 8kHz
+    vs_set_volume(volume, volume);
+    vs_soft_reset();
+
+    just_woken = 1;
     sleeping = 0;
-
-    just_woken = 0;
-    play_mode = PLAY_RANDOM;
+    */
 
 }
 
+/*
 ISR(INT0_vect)
 {
     if (sleeping == 1) {
         just_woken = 1;
     }
 }
+*/
