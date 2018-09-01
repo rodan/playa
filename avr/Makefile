@@ -43,7 +43,7 @@ INCLUDES	+= -I./ -I./drivers
 
 ### Build tools
 # 
-AVR_TOOLS_PATH	= /usr/bin
+AVR_TOOLS_PATH	= /usr/avr/bin
 
 CC		= $(AVR_TOOLS_PATH)/avr-gcc
 LD		= $(AVR_TOOLS_PATH)/avr-ld

@@ -1,10 +1,10 @@
 
-  25 May 2013; Petre Rodan <petre.rodan@simplex.ro>
+  25 May 2013; Petre Rodan <2b4eda@subdimension.ro>
    - complete rewrite of the project, version bump to 2.0
    - drop SDFat, arduino/processing dependencies
    - completely standalone version
 
-  17 Nov 2012; Petre Rodan <petre.rodan@simplex.ro>
+  17 Nov 2012; Petre Rodan <2b4eda@subdimension.ro>
    - add 8s watchdog
    - STOP play_mode places the AVR in power down mode thus total power consumption goes down to 900uA
    - only allow 'power' IR sequence to wake up the uC
