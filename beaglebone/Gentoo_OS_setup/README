@@ -1,0 +1,94 @@
+
+# nand mmc
+drive_mmc='/dev/mmcblk1'
+part_root="${drive_mmc}p1"
+part_var="${drive_mmc}p2"
+
+# sdcard root
+part_sd_boot='/dev/mmcblk0p1'
+part_sd_root='/dev/mmcblk0p2'
+
+
+# prepare u-boot for internal flash-based booting
+
+wget https://rcn-ee.com/repos/git/u-boot-patches/v2019.01/0001-am335x_evm-uEnv.txt-bootz-n-fixes.patch
+wget ftp://ftp.denx.de/pub/u-boot/u-boot-2019.01.tar.bz2
+tar -xjvf u-boot-2019.01.tar.bz2
+cd u-boot-2019.01
+patch -p1 < ../0001-am335x_evm-uEnv.txt-bootz-n-fixes.patch
+patch -p1 < ../config.patch
+
+make ARCH=arm CROSS_COMPILE=armv7a-hardfloat-linux-gnueabihf- am335x_boneblack_config
+make ARCH=arm CROSS_COMPILE=armv7a-hardfloat-linux-gnueabihf-
+
+# save MBR
+dd if=${drive_mmc} of=mbr.bin bs=512 count=1
+
+# fill pre-partition zone with zeroes
+dd if=/dev/zero of=${drive_mmc} bs=4M count=1
+
+# put back MBR
+dd if=mbr.bin of=${drive_mmc} bs=512 count=1
+
+# install the new bootloaders
+dd if=MLO of=${drive_mmc} bs=512 seek=256 count=256 conv=notrunc
+dd if=u-boot.img of=${drive_mmc} bs=512 seek=768 count=1024 conv=notrunc
+
+
+parted --script ${drive_mmc} 'print' 2>&1 | grep -q 'unrecognised disk label' && {
+  parted --script "${drive_mmc}" 'mklabel msdos'
+  parted --script "${drive_mmc}" 'mkpart primary ext2 4M -512M'
+  parted --script "${drive_mmc}" 'mkpart primary ext2 -512M -1'
+  parted --script "${drive_mmc}" 'set 1 boot'
+}
+fdisk -l /dev/mmcblk1
+
+Disk /dev/mmcblk1: 3.6 GiB, 3825205248 bytes, 7471104 sectors
+Units: sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+I/O size (minimum/optimal): 512 bytes / 512 bytes
+Disklabel type: dos
+Disk identifier: 0x7c96be87
+
+Device         Boot   Start     End Sectors  Size Id Type
+/dev/mmcblk1p1 *       8192 6471679 6463488  3.1G 83 Linux
+/dev/mmcblk1p2      6471680 7469055  997376  487M 83 Linux
+
+
+
+
+mkfs.ext2 -t ext2 -L root ${part_root}
+mkfs.ext2 -t ext2 -L root ${part_var}
+
+mkdir -p /mnt/mmc_root /mnt/mmc_var
+mount "${part_root}" /mnt/mmc_root
+mount "${part_var}" /mnt/mmc_var
+
+# install boot loaders conforming to omap4+ partitioning layout
+dd if=MLO of=${drive_mmc} count=1 seek=1 conv=notrunc bs=128k
+dd if=u-boot.img of=${drive_mmc} count=2 seek=1 conv=notrunc bs=384k
+
+mkdir -p /mnt/sd_boot /mnt/sd_root
+mount "${part_sd_boot}" /mnt/sd_boot
+mount "${part_sd_root}" /mnt/sd_root
+
+rsync --specials --delete --recursive --times --links --hard-links --perms --owner --group --numeric-ids --devices --sparse /mnt/sd_root/ /mnt/mmc_root/
+
+rsync --specials --delete --recursive --times --links --hard-links --perms --owner --group --numeric-ids --devices --sparse /mnt/sd_boot/ /mnt/mmc_root/boot/
+
+
+setenv bootpart 1:1
+setenv boot_targets mmc1
+setenv init_console setenv console ttyS0,115200n8;
+setenv loadfdt load \${devtype} \${bootpart} \${fdtaddr} \${bootdir}/dtbs/\${fdtfile}
+saveenv
+
+
+Resources:
+
+https://wiki.beyondlogic.org/index.php?title=BeagleBoneBlack_Upgrading_uBoot
+https://github.com/beagleboard/bb.org-overlays/blob/master/src/arm/univ-bbb-EVA-00A0.dts
+https://elinux.org/BeagleBone_Black_Enable_SPIDEV
+https://elinux.org/Beagleboard:U-boot_partitioning_layout_2.0
+https://github.com/derekmolloy/exploringBB
+

@@ -6,8 +6,9 @@
    - microSD (SDHC) is the storage medium. so fat32 and cards bigger than 4G.
 
   there are 2 components in this repository:
-  avr       - contains the C source code for the firmware
-  hardware  - open source hardware for the main board
+  avr        - contains the C source code for an Atmel-based microcontroller
+  beaglebone - contains the C source code for beagle-bone (ARMv7)-based tools
+  hardware   - open source hardware for the main board
 				the schematic is based on VLSI's Simple DSP Evaluation Board [1]
 
   Library dependencies for the avr code:
@@ -54,7 +55,7 @@
 
   Author:            Petre Rodan <2b4eda@subdimension.ro>
   Available from:    https://github.com/rodan/playa
-  Product pictures:  https://picasaweb.google.com/petre.rodan/Playa
+  Product pictures:  https://photos.app.goo.gl/nUQuD7HJvfVBpMeQ9
   License:           GNU GPLv3
 
 

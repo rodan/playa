@@ -1,0 +1,17 @@
+
+DSP board
+
+JP4
+
+1 GND
+2 VIN (5V)
+3 DREQ
+4 XDCS
+5 XCD
+6 SCLK
+7 MOSI
+8 MISO
+
+
+
+

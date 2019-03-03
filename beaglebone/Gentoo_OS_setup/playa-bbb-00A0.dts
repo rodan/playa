@@ -1,0 +1,94 @@
+/*
+ * Copyright 2019
+ * Petre Rodan <2b4eda@subdimension.ro>
+ * 
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ */
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/pinctrl/am33xx.h>
+#include <dt-bindings/board/am335x-bbw-bbb-base.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+
+/dts-v1/;
+/plugin/;
+
+/ {
+    compatible = "ti,beaglebone-black";
+    part-number = "playa";
+    version = "00A0";
+
+    exclusive-use = "P9.12",    // VS1063 DREQ IRQ
+        "P9.14",                // VS1063 SPI CS command
+        "P9.16",                // VS1063 SPI CS data
+        "P9.17",                // fake SPI CS
+        "P9.18",                // SPI MOSI
+        "P9.21",                // SPI MISO
+        "P9.22",                // SPI SCLK
+        "spi0";
+
+    fragment@0 {
+        target = <&am33xx_pinmux >;
+        __overlay__ {
+            mux_helper_pins:pins {
+                pinctrl-single,pins = < 
+                    BONE_P9_12(PIN_INPUT | MUX_MODE7)           // dreq IRQ
+                    BONE_P9_14(PIN_OUTPUT_PULLUP | MUX_MODE7)   // cs command
+                    BONE_P9_16(PIN_OUTPUT_PULLUP | MUX_MODE7)   // cs data  
+                    BONE_P9_17(PIN_OUTPUT_PULLUP | MUX_MODE0)   // spi0_cs0.spi0_cs0
+                    BONE_P9_18(PIN_OUTPUT_PULLUP | MUX_MODE0)   // spi0_d0.spi0_d1
+                    BONE_P9_21(PIN_INPUT_PULLUP | MUX_MODE0)    // spi0_d0.spi0_d0
+                    BONE_P9_22(PIN_INPUT_PULLUP | MUX_MODE0)    // spi0_sclk.spi0_sclk
+                    >;
+            };
+        };
+    };
+
+// activate mux_helper_pins
+    fragment@1 {
+        target = <&ocp >;
+        __overlay__ {
+            test_helper:helper {
+                compatible = "bone-pinmux-helper";
+                pinctrl-names = "default";
+                pinctrl-0 = <&mux_helper_pins >;
+                status = "okay";
+            };
+        };
+    };
+
+// spi
+    fragment@2 {
+        target = <&spi0 >;
+        __overlay__ {
+
+            #address-cells = <1>;
+            #size-cells = <0>;
+            status = "okay";
+
+            spidev@0 {
+                spi-max-frequency = <2000000>;
+                reg = <0>;
+                compatible = "linux,spidev";
+            };
+        };
+    };
+
+// pru
+    fragment@3 {
+        target = <&pruss >;
+        __overlay__ {
+            status = "okay";
+        };
+    };
+
+};
