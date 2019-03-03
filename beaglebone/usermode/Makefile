@@ -5,48 +5,34 @@
 #
 #==============================================================================
 
-DEVICE:=MSP430F5510
+DEVICE:=armv7a
 PROJ:=main
 SUBDIRS:= 
 
-###################### Windows OS ######################
-ifeq ($(OS),Windows_NT)
-	################## GCC Root Variable ###################
-	GCC_DIR     ?= $(HOMEDRIVE)$(HOMEPATH)/ti/gcc
-	GCC_MSP_INC_DIR ?= $(GCC_DIR)/include
-	DRIVERLIB   := msp430_driverlib_2_91_08_00/driverlib/MSP430FR5xx_6xx
-	GLUELIB     := ../../glue
-	LDDIR       := $(GCC_MSP_INC_DIR)/$(DEVICE)
-	RM          := rd /s /q
-################### Linux or Mac OS ####################
-else
-	################## GCC Root Variable ###################
-	GCC_DIR     ?= /opt/msp430
-	GCC_MSP_INC_DIR ?= $(GCC_DIR)/msp430-elf/lib
-	#DRIVERLIB   := ./driverlib
-	DRIVERLIB   := ./tools
-	GLUELIB     := ./drivers
-	LDDIR       := $(GCC_MSP_INC_DIR)/$(shell echo $(DEVICE) | tr A-Z a-z)
-	RM          := rm -f
-endif
+################## GCC Root Variable ###################
+GCC_DIR     ?= /usr
+GCC_MSP_INC_DIR ?= $(GCC_DIR)/msp430-elf/lib
+DRIVERLIB   := ./tools
+GLUELIB     := ./drivers
+RM          := rm -f
 
 ######################################
 GCC_BIN_DIR      ?= $(GCC_DIR)/bin
 GCC_INC_DIR      ?= $(GCC_DIR)/msp430-elf/include
 ######################################
-CC               := $(GCC_BIN_DIR)/msp430-elf-gcc
-GDB	             := $(GCC_BIN_DIR)/msp430-elf-gdb
+CC               := $(GCC_BIN_DIR)/armv7a-hardfloat-linux-gnueabihf-gcc
+GDB	             := $(GCC_BIN_DIR)/gdb
 ######################################
 
 # -fdata-sections, -ffunction-sections and -Wl,--gc-sections -Wl,-s
 # are used for dead code elimination, see:
 # http://gcc.gnu.org/ml/gcc-help/2003-08/msg00128.html
 
-CFLAGS           := -D__$(DEVICE)__ -mmcu=$(DEVICE) -g -DDEPRECATED
+CFLAGS           := -D__$(DEVICE)__
 CFLAGS           += -Wall -Wno-switch
 CFLAGS		     += -fno-force-addr -finline-limit=1 -fno-schedule-insns
-CFLAGS		     += -fshort-enums -Wl,-Map=output.map
-LDFLAGS          := -T $(LDDIR).ld -L $(GCC_MSP_INC_DIR) -mmcu=$(DEVICE) -g -Wl,--gc-sections
+CFLAGS		     += -Wl,-Map=output.map
+LDFLAGS          := -L $(GCC_MSP_INC_DIR) -g -Wl,--gc-sections
 CFLAGS_REL	     += -Os -fdata-sections -ffunction-sections -fomit-frame-pointer
 LDFLAGS_REL	     += -Wl,-s
 CFLAGS_DBG	     += -O1 -ggdb
@@ -104,7 +90,7 @@ config.h:
 tags: $(PROJ_SRC) $(DRIVERLIB_SRC) $(GLUELIB_SRC) $(LOCAL_SRC) $(PROJ).dep
 	@echo "Generating tags .."
 	echo $(deps)
-	@exuberant-ctags --recurse=yes ./ $(DRIVERLIB) $(GLUELIB) $(GCC_INC_DIR)/$(shell echo $(DEVICE) | tr A-Z a-z).h $(shell cat $(PROJ).hdep)
+	@exuberant-ctags --recurse=yes ./ $(shell cat $(PROJ).hdep)
 
 %.o: %.c
 	@echo "CC $<"
@@ -116,7 +102,7 @@ $(EXOBJECT): $(PROJ_SRC) $(PROJ).cflags
 
 $(EXOUTPUT): $(DRIVERLIB_OBJECTS) $(GLUELIB_OBJECTS) $(LOCAL_OBJECTS) $(EXOBJECT)
 	@echo -e "\n>> Building $@ as target $(TARGET)"
-	@$(CC) $(LDFLAGS) $(DRIVERLIB_OBJECTS) $(GLUELIB_OBJECTS) $(LOCAL_OBJECTS) -o $@ && size $@
+	@$(CC) $(LDFLAGS) $(LOCAL_OBJECTS) -o $@ && size $@
 #	$(CC) $(LDFLAGS) $(EXOBJECT) $(DRIVERLIB_OBJECTS) $(GLUELIB_OBJECTS) $(LOCAL_OBJECTS) -o $@ && size $@
 
 debug: all
