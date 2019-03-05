@@ -27,7 +27,9 @@
     part-number = "playa";
     version = "00A0";
 
-    exclusive-use = "P9.12",    // VS1063 DREQ IRQ
+    exclusive-use = 
+        "P9.12",                // VS1063 DREQ IRQ
+        "P9.13",                // VS1063 XRESET
         "P9.14",                // VS1063 SPI CS command
         "P9.16",                // VS1063 SPI CS data
         "P9.17",                // fake SPI CS
@@ -41,11 +43,12 @@
         __overlay__ {
             mux_helper_pins:pins {
                 pinctrl-single,pins = < 
-                    BONE_P9_12(PIN_INPUT | MUX_MODE7)           // dreq IRQ
-                    BONE_P9_14(PIN_OUTPUT_PULLUP | MUX_MODE7)   // cs command
-                    BONE_P9_16(PIN_OUTPUT_PULLUP | MUX_MODE7)   // cs data  
-                    BONE_P9_17(PIN_OUTPUT_PULLUP | MUX_MODE0)   // spi0_cs0.spi0_cs0
-                    BONE_P9_18(PIN_OUTPUT_PULLUP | MUX_MODE0)   // spi0_d0.spi0_d1
+                    BONE_P9_12(PIN_INPUT_PULLDOWN | MUX_MODE7)  // dreq IRQ
+                    BONE_P9_13(PIN_OUTPUT | MUX_MODE7)          // xreset
+                    BONE_P9_14(PIN_OUTPUT | MUX_MODE7)          // cs command
+                    BONE_P9_16(PIN_OUTPUT | MUX_MODE7)          // cs data
+                    BONE_P9_17(PIN_OUTPUT | MUX_MODE0)          // spi0_cs0.spi0_cs0
+                    BONE_P9_18(PIN_OUTPUT | MUX_MODE0)          // spi0_d0.spi0_d1
                     BONE_P9_21(PIN_INPUT_PULLUP | MUX_MODE0)    // spi0_d0.spi0_d0
                     BONE_P9_22(PIN_INPUT_PULLUP | MUX_MODE0)    // spi0_sclk.spi0_sclk
                     >;
