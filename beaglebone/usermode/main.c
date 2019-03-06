@@ -9,7 +9,8 @@
 #include <linux/gpio.h>
 
 #include "config.h"
-#include "devmem.h"
+//#include "devmem.h"
+#include "gpiolib.h"
 #include "spi.h"
 #include "vs1063.h"
 
@@ -52,6 +53,27 @@ static void print_usage(const char *prog)
     exit(1);
 }
 
+void print_vs_registers()
+{
+	printf("SCI_MODE         0x%x\n", vs_read_register(SCI_MODE));
+	printf("SCI_STATUS       0x%x\n", vs_read_register(SCI_STATUS));
+	printf("SCI_CLOCKF       0x%x\n", vs_read_register(SCI_CLOCKF));
+	printf("SCI_DECODE_TIME  0x%x\n", vs_read_register(SCI_DECODE_TIME));
+	printf("SCI_AUDATA       0x%x\n", vs_read_register(SCI_AUDATA));
+	printf("SCI_HDAT0        0x%x\n", vs_read_register(SCI_HDAT0));
+	printf("SCI_HDAT1        0x%x\n", vs_read_register(SCI_HDAT1));
+	printf("SCI_VOL          0x%x\n", vs_read_register(SCI_VOL));
+
+/*
+	printf("DREQ state       0x%x\n", devmem_read_gpio(GPIO1_BASE, 28));
+    printf("xCS  state       0x%x\n", devmem_read_gpio(GPIO1_BASE, 18));
+    printf("xDCS state       0x%x\n", devmem_read_gpio(GPIO1_BASE, 19));
+*/
+	printf("DREQ state       0x%x\n", vs_get_dreq());
+    //printf("xCS  state       0x%x\n", vs_get_xcs());
+    //printf("xDCS state       0x%x\n", vs_get_xdcs());
+}
+
 #define BUFF_SIZE    65535      // read buffer size
 
 uint8_t play_file(char *file_path)
@@ -66,7 +88,6 @@ uint8_t play_file(char *file_path)
     int fd;
     ssize_t read_len, buf_remain;
     int res;
-
 	int fd_out;
 
     printf("playing %s\n", file_path);
@@ -234,45 +255,37 @@ int main(int argc, char *argv[])
     //gpio_request(51, "sysfs");
     //gpio_direction_output(51, 1);
 
-    // init devmem
-    devmem_open();
-
-    // initial port states
-    vs_deselect_control();
-    vs_deselect_data();
-    vs_assert_xreset();
-
-    // initialize spi and vs1063
     spi_init();
-    usleep(100000);             // allow caps to charge 
 
-/*
-    //devmem_writehigh_gpio(GPIO1_BASE, 18);
-    printf("P9.14 value 0x%x\n", devmem_read_gpio(GPIO1_BASE, 18));
-    //devmem_writehigh_gpio(GPIO1_BASE, 19);
-    printf("P9.16 value 0x%x\n", devmem_read_gpio(GPIO1_BASE, 19));
-*/
+    // init devmem
+    //devmem_open();
+	ret = gpio_init();
+	if (ret) {
+		printf(" gpio_init error %d\n" , gpio_errno);
+		exit (1);
+	}
 
     vs_setup();
     //initialize chip 
-    vs_set_volume(0xff, 0xff);
-    //AVDD is at least 3.3v, so select 1.65v reference to increase 
-    //the analog output swing
-    vs_write_register(SCI_STATUS, SS_REFERENCE_SEL);
+    //vs_set_volume(0xff, 0xff);
+
     // Declick: Slow sample rate for slow analog part startup
-    vs_write_register_hl(SCI_AUDATA, 0, 10);        // 10Hz
+    //vs_write_register_hl(SCI_AUDATA, 0, 10);        // 10Hz
     // Switch on the analog parts
-    vs_write_register_hl(SCI_AUDATA, 0xac, 0x45);   // 44100Hz, stereo
+    //vs_write_register_hl(SCI_AUDATA, 0xac, 0x45);   // 44100Hz, stereo
     vs_soft_reset();
     vs_set_volume(volume, volume);
 
-    usleep(100000);             // allow caps to charge 
+    //AVDD is at least 3.3v, so select 1.65v reference to increase 
+    //the analog output swing
+    vs_write_register(SCI_STATUS, SS_REFERENCE_SEL);
+
+	print_vs_registers();
+
+    //usleep(100000);             // allow caps to charge 
     play_file(input_file);
-
-    vs_set_volume(0xff, 0xff);
-    vs_assert_xreset();
-
+	
+	vs_close();
     spi_close();
-    devmem_close();
     return ret;
 }

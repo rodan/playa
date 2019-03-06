@@ -21,7 +21,7 @@ void spi_init()
 	const char *device = "/dev/spidev1.0";
 	const uint8_t mode = 0;
 	const uint8_t bits = 8;
-	const uint32_t speed = 256000;
+	const uint32_t speed = 2000000;
 	const uint16_t delay = 0;
 	int ret;
 

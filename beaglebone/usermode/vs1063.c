@@ -3,8 +3,49 @@
 #include <stdlib.h>
 #include <string.h>
 #include "vs1063.h"
-#include "devmem.h"
+#include "gpiolib.h"
 #include "spi.h"
+
+gpio_info *xDCS;
+gpio_info *xCS;
+gpio_info *RST;
+gpio_info *DREQ;
+
+void vs_select_control()
+{
+	gpio_clear(xCS);
+}
+
+void vs_deselect_control()
+{
+    gpio_set(xCS);
+}
+
+void vs_select_data()
+{
+    gpio_clear(xDCS);
+}
+
+void vs_deselect_data()
+{
+    gpio_set(xDCS);
+}
+
+void vs_assert_xreset()
+{
+    gpio_clear(RST);
+}
+
+void vs_deassert_xreset()
+{
+    gpio_set(RST);
+}
+
+uint32_t vs_get_dreq()
+{
+	return gpio_read(DREQ);
+}
+
 
 // read the 16-bit value of a VS10xx register
 uint16_t vs_read_register(const uint8_t address)
@@ -31,7 +72,7 @@ void vs_write_register_hl(const uint8_t address, const uint8_t highbyte, const u
     vs_deselect_data();
     vs_select_control();
     vs_wait(VS_DREQ_TMOUT);
-    usleep(2000);
+    //usleep(2000);
 	spi_transfer(rx, tx, 4);
     vs_deselect_control();
     vs_wait(VS_DREQ_TMOUT);
@@ -68,7 +109,7 @@ void vs_write_wramaddr(const uint16_t address, const uint16_t value)
 uint8_t vs_wait(uint16_t timeout)
 {
     while (timeout--) {
-        if (!devmem_read_gpio(GPIO1_BASE, 28)) {
+        if (vs_get_dreq()) {
             return EXIT_SUCCESS;
         }
 		usleep(15);
@@ -79,9 +120,47 @@ uint8_t vs_wait(uint16_t timeout)
 // set up pins
 void vs_setup(void)
 {
+	xDCS = gpio_attach(1, bit(19), GPIO_OUT);
+	if (xDCS == NULL) {
+		exit(1);
+	}
+
+	xCS = gpio_attach(1, bit(18), GPIO_OUT);
+	if (xCS == NULL) {
+		exit(1);
+	}
+
+	RST = gpio_attach(0, bit(31), GPIO_OUT);
+	if (RST == NULL) {
+		exit(1);
+	}
+
+	DREQ = gpio_attach(1, bit(28), GPIO_IN);
+	if (DREQ == NULL) {
+		exit(1);
+	}
+
+    // initial port states
+    vs_deselect_control();
+    vs_deselect_data();
+    vs_assert_xreset();
+    usleep(2000);
     vs_deassert_xreset();
-    usleep(400000);
+    sleep(1);
     vs_wait(VS_DREQ_TMOUT);
+}
+
+void vs_close()
+{
+
+    //vs_end_play();
+    usleep(2000);
+    vs_assert_xreset();
+
+    gpio_detach(xDCS);
+    gpio_detach(xCS);
+    gpio_detach(RST);
+    gpio_detach(DREQ);
 }
 
 void vs_soft_reset(void)
@@ -89,7 +168,10 @@ void vs_soft_reset(void)
     vs_write_register(SCI_MODE, SM_SDINEW | SM_RESET);
     usleep(2000);
     // set SC_MULT=3.5x, SC_ADD=1.0x
-    vs_write_register(SCI_CLOCKF, 0x8800);
+    //vs_write_register(SCI_CLOCKF, 0x8800);
+    // set SC_MULT=4x, SC_ADD=1.5x (recommended by datasheet)
+    vs_write_register(SCI_CLOCKF, 0xb000);
+    usleep(200);
 }
 
 // setup I2S (see page77 of the datasheet of vs1053 )
