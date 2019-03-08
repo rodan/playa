@@ -55,21 +55,21 @@ static void print_usage(const char *prog)
 
 void print_vs_registers()
 {
-	printf("SCI_MODE         0x%x\n", vs_read_register(SCI_MODE));
-	printf("SCI_STATUS       0x%x\n", vs_read_register(SCI_STATUS));
-	printf("SCI_CLOCKF       0x%x\n", vs_read_register(SCI_CLOCKF));
-	printf("SCI_DECODE_TIME  0x%x\n", vs_read_register(SCI_DECODE_TIME));
-	printf("SCI_AUDATA       0x%x\n", vs_read_register(SCI_AUDATA));
-	printf("SCI_HDAT0        0x%x\n", vs_read_register(SCI_HDAT0));
-	printf("SCI_HDAT1        0x%x\n", vs_read_register(SCI_HDAT1));
-	printf("SCI_VOL          0x%x\n", vs_read_register(SCI_VOL));
+    printf("SCI_MODE         0x%x\n", vs_read_register(SCI_MODE));
+    printf("SCI_STATUS       0x%x\n", vs_read_register(SCI_STATUS));
+    printf("SCI_CLOCKF       0x%x\n", vs_read_register(SCI_CLOCKF));
+    printf("SCI_DECODE_TIME  0x%x\n", vs_read_register(SCI_DECODE_TIME));
+    printf("SCI_AUDATA       0x%x\n", vs_read_register(SCI_AUDATA));
+    printf("SCI_HDAT0        0x%x\n", vs_read_register(SCI_HDAT0));
+    printf("SCI_HDAT1        0x%x\n", vs_read_register(SCI_HDAT1));
+    printf("SCI_VOL          0x%x\n", vs_read_register(SCI_VOL));
 
 /*
 	printf("DREQ state       0x%x\n", devmem_read_gpio(GPIO1_BASE, 28));
     printf("xCS  state       0x%x\n", devmem_read_gpio(GPIO1_BASE, 18));
     printf("xDCS state       0x%x\n", devmem_read_gpio(GPIO1_BASE, 19));
 */
-	printf("DREQ state       0x%x\n", vs_get_dreq());
+    printf("DREQ state       0x%x\n", vs_get_dreq());
     //printf("xCS  state       0x%x\n", vs_get_xcs());
     //printf("xDCS state       0x%x\n", vs_get_xdcs());
 }
@@ -88,7 +88,7 @@ uint8_t play_file(char *file_path)
     int fd;
     ssize_t read_len, buf_remain;
     int res;
-	int fd_out;
+    int fd_out;
 
     printf("playing %s\n", file_path);
 
@@ -98,13 +98,13 @@ uint8_t play_file(char *file_path)
         return EXIT_FAILURE;
     }
 
-	fd_out = open("/tmp/file", O_WRONLY | O_CREAT | O_TRUNC, 0);
+    fd_out = open("/tmp/file", O_WRONLY | O_CREAT | O_TRUNC, 0);
     vs_select_data();
 
     while ((read_len = read(fd, buf, BUFF_SIZE)) > 0) {
         buf_remain = read_len;
         while (buf_remain) {
-    		vs_select_data();
+            vs_select_data();
             if (buf_remain < VS_BUFF_SZ) {
                 tx_len = buf_remain;
             } else {
@@ -112,15 +112,15 @@ uint8_t play_file(char *file_path)
             }
             vs_wait(VS_DREQ_TMOUT);
             spi_transfer(NULL, buf + (read_len - buf_remain), tx_len);
-            write(fd_out, buf+(read_len-buf_remain), tx_len);
+            write(fd_out, buf + (read_len - buf_remain), tx_len);
             buf_remain -= tx_len;
-    		vs_deselect_data();
+            vs_deselect_data();
         }
     }
 
     vs_deselect_data();
     close(fd);
-	close(fd_out);
+    close(fd_out);
 
 /*
 good
@@ -245,7 +245,6 @@ int main(int argc, char *argv[])
     if (input_file == NULL) {
         print_usage(argv[0]);
     }
-
     // set up gpio ports
     //  GPIO1.18 aka 50 aka vs1063 cs command
     //gpio_request(50, "sysfs");
@@ -259,11 +258,11 @@ int main(int argc, char *argv[])
 
     // init devmem
     //devmem_open();
-	ret = gpio_init();
-	if (ret) {
-		printf(" gpio_init error %d\n" , gpio_errno);
-		exit (1);
-	}
+    ret = gpio_init();
+    if (ret) {
+        printf(" gpio_init error %d\n", gpio_errno);
+        exit(1);
+    }
 
     vs_setup();
     //initialize chip 
@@ -280,12 +279,12 @@ int main(int argc, char *argv[])
     //the analog output swing
     vs_write_register(SCI_STATUS, SS_REFERENCE_SEL);
 
-	print_vs_registers();
+    print_vs_registers();
 
-    //usleep(100000);             // allow caps to charge 
+    usleep(100000);             // allow caps to charge 
     play_file(input_file);
-	
-	vs_close();
+
+    vs_close();
     spi_close();
     return ret;
 }

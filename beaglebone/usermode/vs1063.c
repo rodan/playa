@@ -72,7 +72,6 @@ void vs_write_register_hl(const uint8_t address, const uint8_t highbyte, const u
     vs_deselect_data();
     vs_select_control();
     vs_wait(VS_DREQ_TMOUT);
-    //usleep(2000);
 	spi_transfer(rx, tx, 4);
     vs_deselect_control();
     vs_wait(VS_DREQ_TMOUT);
@@ -147,7 +146,7 @@ void vs_setup(void)
     usleep(2000);
     vs_deassert_xreset();
     sleep(1);
-    vs_wait(VS_DREQ_TMOUT);
+    //vs_wait(VS_DREQ_TMOUT);
 }
 
 void vs_close()
