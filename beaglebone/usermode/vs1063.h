@@ -5,29 +5,8 @@
 #include <inttypes.h>
 #include "bbb-memory_map.h"
 
-/*
-#define vs_select_control()     devmem_writelow_gpio(GPIO1_BASE, 18)
-#define vs_deselect_control()   devmem_writehigh_gpio(GPIO1_BASE, 18)
-#define vs_select_data()        devmem_writelow_gpio(GPIO1_BASE, 19)
-#define vs_deselect_data()      devmem_writehigh_gpio(GPIO1_BASE, 19)
-
-// should be followed by 200ms delays for the cap to charge/discharge
-#define vs_assert_xreset()      devmem_writelow_gpio(GPIO0_BASE, 31)
-#define vs_deassert_xreset()    devmem_writehigh_gpio(GPIO0_BASE, 31)
-*/
-
-void vs_select_control();
-void vs_deselect_control();
-void vs_select_data();
-void vs_deselect_data();
-
-// should be followed by 200ms delays for the cap to charge/discharge
 void vs_assert_xreset();
 void vs_deassert_xreset();
-
-uint32_t vs_get_xcs();
-uint32_t vs_get_xdcs();
-uint32_t vs_get_xreset();
 uint32_t vs_get_dreq();
 
 #define VS_BUFF_SZ      32      // how much data to send in one batch to VS1063
@@ -113,5 +92,7 @@ void vs_soft_reset(void);
 void vs_set_volume(const uint8_t leftchannel, const uint8_t rightchannel);
 void vs_fill(const uint16_t len);
 void vs_ear_speaker(const uint8_t level);
+
+uint8_t play_file(char *file_path);
 
 #endif

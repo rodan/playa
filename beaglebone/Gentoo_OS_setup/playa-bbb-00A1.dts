@@ -1,0 +1,91 @@
+/*
+ * Copyright 2019
+ * Petre Rodan <2b4eda@subdimension.ro>
+ * 
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ */
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/pinctrl/am33xx.h>
+#include <dt-bindings/board/am335x-bbw-bbb-base.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+
+/dts-v1/;
+/plugin/;
+
+/ {
+    compatible = "ti,beaglebone-black";
+    part-number = "playa";
+    version = "00A1";
+
+    exclusive-use = 
+        "P9.25",  // VS1063 DREQ IRQ
+        "P9.27",  // VS1063 XRESET
+        "P9.42",  // VS1063 SPI CS command
+        "P9.28",  // VS1063 SPI CS data
+        "P9.29",  // SPI MISO
+        "P9.30",  // SPI MOSI
+        "P9.31",  // SPI SCLK
+        "spi1";
+
+    fragment@0 {
+        target = <&am33xx_pinmux>;
+        __overlay__ {
+            mux_helper_pins:pins {
+                pinctrl-single,pins = < 
+                    AM33XX_IOPAD(0x09ac, PIN_INPUT_PULLDOWN | MUX_MODE7)  // dreq IRQ
+                    AM33XX_IOPAD(0x09a4, PIN_OUTPUT | MUX_MODE7)          // xreset
+                    AM33XX_IOPAD(0x0964, PIN_OUTPUT | MUX_MODE2)          // cs command
+                    AM33XX_IOPAD(0x099c, PIN_OUTPUT | MUX_MODE3)          // cs data
+                    AM33XX_IOPAD(0x0994, PIN_INPUT_PULLUP | MUX_MODE3)    // spi1 miso
+                    AM33XX_IOPAD(0x0998, PIN_OUTPUT | MUX_MODE3)          // spi1 mosi
+                    AM33XX_IOPAD(0x0990, PIN_INPUT_PULLUP | MUX_MODE3)    // spi1 clk
+                    >;
+            };
+        };
+    };
+
+// activate mux_helper_pins
+    fragment@1 {
+        target = <&ocp>;
+        __overlay__ {
+            test_helper:helper {
+                compatible = "bone-pinmux-helper";
+                pinctrl-names = "default";
+                pinctrl-0 = <&mux_helper_pins>;
+                status = "okay";
+            };
+        };
+    };
+
+// spi
+    fragment@2 {
+        target = <&spi1>;
+        __overlay__ {
+
+            #address-cells = <1>;
+            #size-cells = <0>;
+            status = "okay";
+
+            spi1channel@0 {
+                spi-max-frequency = <16000000>;
+                reg = <0>;
+                compatible = "linux,spidev";
+            };
+            spi1channel@1 {
+                spi-max-frequency = <16000000>;
+                reg = <1>;
+                compatible = "linux,spidev";
+            };
+        };
+    };
+};

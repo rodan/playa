@@ -2,34 +2,22 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+
+#include <stdio.h>
+
 #include "vs1063.h"
 #include "gpiolib.h"
 #include "spi.h"
 
-gpio_info *xDCS;
-gpio_info *xCS;
+#define BUFF_SIZE    65535      // read buffer size
+
+int spidev_fd_xCS, spidev_fd_xDCS;
+struct spi_ioc_transfer tr_xCS, tr_xDCS;
+
 gpio_info *RST;
 gpio_info *DREQ;
-
-void vs_select_control()
-{
-	gpio_clear(xCS);
-}
-
-void vs_deselect_control()
-{
-    gpio_set(xCS);
-}
-
-void vs_select_data()
-{
-    gpio_clear(xDCS);
-}
-
-void vs_deselect_data()
-{
-    gpio_set(xDCS);
-}
 
 void vs_assert_xreset()
 {
@@ -54,12 +42,9 @@ uint16_t vs_read_register(const uint8_t address)
 	uint8_t tx[4] = { VS_READ_COMMAND, address, 0xff, 0xff };
 	uint8_t rx[4] = { 0, 0, 0, 0 };
 
-    vs_deselect_data();
-    vs_select_control();
     vs_wait(VS_DREQ_TMOUT);
-	spi_transfer(rx, tx, 4);
+	spi_transfer(rx, tx, 4, spidev_fd_xCS, &tr_xCS);
 	rv = rx[2] << 8 | rx[3];
-    vs_deselect_control();
     vs_wait(VS_DREQ_TMOUT);
     return rv;
 }
@@ -69,11 +54,8 @@ void vs_write_register_hl(const uint8_t address, const uint8_t highbyte, const u
 {
 	uint8_t tx[4] = { VS_WRITE_COMMAND, address, highbyte, lowbyte };
 	uint8_t rx[4] = { 0, 0, 0, 0 };
-    vs_deselect_data();
-    vs_select_control();
     vs_wait(VS_DREQ_TMOUT);
-	spi_transfer(rx, tx, 4);
-    vs_deselect_control();
+	spi_transfer(rx, tx, 4, spidev_fd_xCS, &tr_xCS);
     vs_wait(VS_DREQ_TMOUT);
 }
 
@@ -119,29 +101,24 @@ uint8_t vs_wait(uint16_t timeout)
 // set up pins
 void vs_setup(void)
 {
-	xDCS = gpio_attach(1, bit(19), GPIO_OUT);
-	if (xDCS == NULL) {
-		exit(1);
-	}
+	if ((spidev_fd_xCS = spi_init("/dev/spidev2.1", &tr_xCS)) == -1) {
+        exit(1);
+    }
+	if ((spidev_fd_xDCS = spi_init("/dev/spidev2.0", &tr_xDCS)) == -1) {
+        exit(1);
+    }
 
-	xCS = gpio_attach(1, bit(18), GPIO_OUT);
-	if (xCS == NULL) {
-		exit(1);
-	}
-
-	RST = gpio_attach(0, bit(31), GPIO_OUT);
+	RST = gpio_attach(3, bit(19), GPIO_OUT);
 	if (RST == NULL) {
 		exit(1);
 	}
 
-	DREQ = gpio_attach(1, bit(28), GPIO_IN);
+	DREQ = gpio_attach(3, bit(21), GPIO_IN);
 	if (DREQ == NULL) {
 		exit(1);
 	}
 
     // initial port states
-    vs_deselect_control();
-    vs_deselect_data();
     vs_assert_xreset();
     usleep(2000);
     vs_deassert_xreset();
@@ -151,13 +128,11 @@ void vs_setup(void)
 
 void vs_close()
 {
-
-    //vs_end_play();
     usleep(2000);
     vs_assert_xreset();
 
-    gpio_detach(xDCS);
-    gpio_detach(xCS);
+    close(spidev_fd_xCS);
+    close(spidev_fd_xDCS);
     gpio_detach(RST);
     gpio_detach(DREQ);
 }
@@ -240,14 +215,14 @@ void vs_fill(const uint16_t len)
     fill = vs_read_wramaddr(endFillByte);
     memset(buff, fill, VS_BUFF_SZ);
 
-    vs_select_data();
     for (i = 0; i < (len / VS_BUFF_SZ); i++) {
         vs_wait(VS_DREQ_TMOUT);
-        spi_transfer(NULL, buff, VS_BUFF_SZ);
+        spi_transfer(NULL, buff, VS_BUFF_SZ, spidev_fd_xDCS, &tr_xDCS);
     }
-    vs_wait(VS_DREQ_TMOUT);
-    spi_transfer(NULL, buff, len % VS_BUFF_SZ);
-    vs_deselect_data();
+    if (len % VS_BUFF_SZ) {
+        vs_wait(VS_DREQ_TMOUT);
+        spi_transfer(NULL, buff, len % VS_BUFF_SZ, spidev_fd_xDCS, &tr_xDCS);
+    }
 }
 
 // level    0 - disabled - suited for listening through loudspeakers
@@ -260,3 +235,129 @@ void vs_ear_speaker(const uint8_t level)
 
     vs_write_wramaddr(earSpeakerLevel, ear_speaker_level[level%4]);
 }
+
+uint8_t play_file(char *file_path)
+{
+    uint8_t buf[BUFF_SIZE];
+    uint16_t tx_len;
+    //uint16_t i, tx_len;
+    //uint8_t count = 0;
+    //uint8_t checked = 0;
+    //uint16_t codec = 0x0eaa;    // something unused
+    //int16_t replaygain_offset = 0;
+    //uint8_t replaygain_volume;
+    int fd;
+    ssize_t read_len, buf_remain;
+    //int res;
+
+    vs_soft_reset();
+
+    if ((fd = open(file_path, O_RDONLY)) == -1) {
+        return EXIT_FAILURE;
+    }
+
+    while ((read_len = read(fd, buf, BUFF_SIZE)) > 0) {
+        buf_remain = read_len;
+        while (buf_remain) {
+            if (buf_remain < VS_BUFF_SZ) {
+                tx_len = buf_remain;
+            } else {
+                tx_len = VS_BUFF_SZ;
+            }
+            vs_wait(VS_DREQ_TMOUT);
+            spi_transfer(NULL, buf + (read_len - buf_remain), tx_len, spidev_fd_xDCS, &tr_xDCS);
+            buf_remain -= tx_len;
+        }
+    }
+    close(fd);
+
+/*
+good
+    for (;;) {
+        res = read(fd, cbuff, CARD_BUFF_SZ);
+        if (res == -1) {
+            vs_deselect_data();
+			printf("E f_read 0x%x\n", res);
+            vs_end_play();
+            usleep(100000);
+            break;              // file open err or EOF
+        }
+        if (!checked) {
+            count++;
+		}
+*/
+/*
+        if (!checked && count > 100) {
+            vs_deselect_data();
+            // sometimes the decoder never gets busy while reading non-music data
+            // so we exit here
+            if (vs_read_register(SCI_HDAT1) == 0) {
+                printf("HDAT1 err\r\n");
+                close(fd);
+                vs_cancel_play();
+                usleep(100000);
+                return 1;
+            }
+        }
+*/
+/*
+good
+        vs_select_data();
+        i = 0;
+        while (i < r) {
+*/
+/*
+            while (!(VS_DREQ_PIN & VS_DREQ)) {
+                // the VS chip is busy, so do something else
+                vs_deselect_data();     // Release the SDI bus
+                if (!checked && count > 1) {
+                    vs_deselect_data();
+                    // do a one-time check of the codec status
+                    codec = vs_read_register(SCI_HDAT1);
+                    if (codec == 0x4f67) {
+                        // if ogg, read the replaygain offset
+                        replaygain_offset = vs_read_wramaddr(ogg_gain_offset);
+                        if (replaygain_offset < 10 && replaygain_offset > -30) {
+                            replaygain_volume =
+                                volume - (replaygain_offset + 12);
+                            //if (!mute) {
+                                vs_set_volume(replaygain_volume,
+                                              replaygain_volume);
+                            //}
+							printf("replaygain set %d %d\n", replaygain_offset, replaygain_volume );
+                        }
+                    }
+                    checked = 1;
+                }
+                vs_select_data();       // Pull XDCS low
+            }                   // the mint rubbing function
+*/
+/*
+good
+
+            if (VS_BUFF_SZ > r) {
+                tx_len = r;
+            } else if (i + VS_BUFF_SZ > r) {
+                tx_len = r % VS_BUFF_SZ;
+            } else {
+                tx_len = VS_BUFF_SZ;
+            }
+
+            // send up to 32bytes after a VS_DREQ check
+            vs_wait(VS_DREQ_TMOUT);
+            spi_transmit_sync(cbuff, i, tx_len);
+            i += tx_len;
+        }
+        vs_wait(VS_DREQ_TMOUT);
+        vs_deselect_data();
+    }
+
+    vs_write_register(SCI_MODE, SM_CANCEL);
+    close(fd);
+*/
+    vs_end_play();
+	printf("play ended\n");
+    return EXIT_SUCCESS;
+}
+
+

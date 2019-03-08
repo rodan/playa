@@ -17,7 +17,5 @@ repeat_exec()
 	return 1
 }
 
-repeat_exec "echo '31' > /sys/class/gpio/unexport"
-repeat_exec "echo '50' > /sys/class/gpio/unexport"
-repeat_exec "echo '51' > /sys/class/gpio/unexport"
-repeat_exec "echo '60' > /sys/class/gpio/unexport"
+repeat_exec "echo '115' > /sys/class/gpio/unexport"
+repeat_exec "echo '117' > /sys/class/gpio/unexport"

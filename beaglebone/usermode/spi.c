@@ -7,8 +7,8 @@
 #include <sys/stat.h>
 #include <linux/spi/spidev.h>
 
-int spidev_fd;
-struct spi_ioc_transfer tr;
+//int spidev_fd;
+//struct spi_ioc_transfer tr;
 
 static void pabort(const char *s)
 {
@@ -16,14 +16,15 @@ static void pabort(const char *s)
 	abort();
 }
 
-void spi_init()
+int spi_init(const char* device, struct spi_ioc_transfer *tr)
 {
-	const char *device = "/dev/spidev1.0";
 	const uint8_t mode = 0;
 	const uint8_t bits = 8;
 	const uint32_t speed = 3000000;
+	//const uint32_t speed = 512000;
 	const uint16_t delay = 0;
 	int ret;
+	int spidev_fd;
 
 	spidev_fd = open(device, O_RDWR);
 	if (spidev_fd < 0) {
@@ -63,23 +64,25 @@ void spi_init()
 		pabort("can't get max speed hz");
 	}
 
-	tr.delay_usecs = delay;
-	tr.speed_hz = speed;
-	tr.bits_per_word = bits;
+	tr->delay_usecs = delay;
+	tr->speed_hz = speed;
+	tr->bits_per_word = bits;
+
+    return spidev_fd;
 }
 
-void spi_close() {
+void spi_close(const int spidev_fd) {
 	close(spidev_fd);
 }
 
-void spi_transfer(uint8_t *rx, uint8_t *tx, const uint16_t len)
+void spi_transfer(uint8_t *rx, uint8_t *tx, const uint16_t len, const int spidev_fd, struct spi_ioc_transfer *tr)
 {
 	int ret;
-	tr.tx_buf = (unsigned long)tx;
-	tr.rx_buf = (unsigned long)rx;
-	tr.len = len;
+	tr->tx_buf = (unsigned long)tx;
+	tr->rx_buf = (unsigned long)rx;
+	tr->len = len;
 
-	ret = ioctl(spidev_fd, SPI_IOC_MESSAGE(1), &tr);
+	ret = ioctl(spidev_fd, SPI_IOC_MESSAGE(1), tr);
 	if (ret < 1) {
 		pabort("can't send spi message");
 	}
