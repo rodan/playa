@@ -11,7 +11,7 @@
 #include "gpiolib.h"
 #include "spi.h"
 
-#define BUFF_SIZE    65535      // read buffer size
+#define BUFF_SIZE    131072      // read buffer size
 
 int spidev_fd_xCS, spidev_fd_xDCS;
 struct spi_ioc_transfer tr_xCS, tr_xDCS;
@@ -141,9 +141,6 @@ void vs_soft_reset(void)
 {
     vs_write_register(SCI_MODE, SM_SDINEW | SM_RESET);
     usleep(2000);
-    // set SC_MULT=3.5x, SC_ADD=1.0x
-    //vs_write_register(SCI_CLOCKF, 0x8800);
-    // set SC_MULT=4x, SC_ADD=1.5x (recommended by datasheet)
     vs_write_register(SCI_CLOCKF, 0xb000);
     usleep(200);
 }
@@ -240,15 +237,8 @@ uint8_t play_file(char *file_path)
 {
     uint8_t buf[BUFF_SIZE];
     uint16_t tx_len;
-    //uint16_t i, tx_len;
-    //uint8_t count = 0;
-    //uint8_t checked = 0;
-    //uint16_t codec = 0x0eaa;    // something unused
-    //int16_t replaygain_offset = 0;
-    //uint8_t replaygain_volume;
     int fd;
     ssize_t read_len, buf_remain;
-    //int res;
 
     vs_soft_reset();
 
@@ -271,90 +261,6 @@ uint8_t play_file(char *file_path)
     }
     close(fd);
 
-/*
-good
-    for (;;) {
-        res = read(fd, cbuff, CARD_BUFF_SZ);
-        if (res == -1) {
-            vs_deselect_data();
-			printf("E f_read 0x%x\n", res);
-            vs_end_play();
-            usleep(100000);
-            break;              // file open err or EOF
-        }
-        if (!checked) {
-            count++;
-		}
-*/
-/*
-        if (!checked && count > 100) {
-            vs_deselect_data();
-            // sometimes the decoder never gets busy while reading non-music data
-            // so we exit here
-            if (vs_read_register(SCI_HDAT1) == 0) {
-                printf("HDAT1 err\r\n");
-                close(fd);
-                vs_cancel_play();
-                usleep(100000);
-                return 1;
-            }
-        }
-*/
-/*
-good
-        vs_select_data();
-        i = 0;
-        while (i < r) {
-*/
-/*
-            while (!(VS_DREQ_PIN & VS_DREQ)) {
-                // the VS chip is busy, so do something else
-                vs_deselect_data();     // Release the SDI bus
-                if (!checked && count > 1) {
-                    vs_deselect_data();
-                    // do a one-time check of the codec status
-                    codec = vs_read_register(SCI_HDAT1);
-                    if (codec == 0x4f67) {
-                        // if ogg, read the replaygain offset
-                        replaygain_offset = vs_read_wramaddr(ogg_gain_offset);
-                        if (replaygain_offset < 10 && replaygain_offset > -30) {
-                            replaygain_volume =
-                                volume - (replaygain_offset + 12);
-                            //if (!mute) {
-                                vs_set_volume(replaygain_volume,
-                                              replaygain_volume);
-                            //}
-							printf("replaygain set %d %d\n", replaygain_offset, replaygain_volume );
-                        }
-                    }
-                    checked = 1;
-                }
-                vs_select_data();       // Pull XDCS low
-            }                   // the mint rubbing function
-*/
-/*
-good
-
-            if (VS_BUFF_SZ > r) {
-                tx_len = r;
-            } else if (i + VS_BUFF_SZ > r) {
-                tx_len = r % VS_BUFF_SZ;
-            } else {
-                tx_len = VS_BUFF_SZ;
-            }
-
-            // send up to 32bytes after a VS_DREQ check
-            vs_wait(VS_DREQ_TMOUT);
-            spi_transmit_sync(cbuff, i, tx_len);
-            i += tx_len;
-        }
-        vs_wait(VS_DREQ_TMOUT);
-        vs_deselect_data();
-    }
-
-    vs_write_register(SCI_MODE, SM_CANCEL);
-    close(fd);
-*/
     vs_end_play();
 	printf("play ended\n");
     return EXIT_SUCCESS;
