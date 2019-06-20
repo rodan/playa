@@ -28,11 +28,11 @@ GDB	             := $(GCC_BIN_DIR)/gdb
 # are used for dead code elimination, see:
 # http://gcc.gnu.org/ml/gcc-help/2003-08/msg00128.html
 
-CFLAGS           := -D__$(DEVICE)__
+CFLAGS           := -D__$(DEVICE)__ -DNO_PYTHON
 CFLAGS           += -Wall -Wno-switch
 CFLAGS		     += -fno-force-addr -finline-limit=1 -fno-schedule-insns
 CFLAGS		     += -Wl,-Map=output.map
-LDFLAGS          := -L $(GCC_MSP_INC_DIR) -g -Wl,--gc-sections
+LDFLAGS          := -L $(GCC_MSP_INC_DIR) -g -Wl,--gc-sections -lpthread
 CFLAGS_REL	     += -Os -fdata-sections -ffunction-sections -fomit-frame-pointer
 LDFLAGS_REL	     += -Wl,-s
 CFLAGS_DBG	     += -O1 -ggdb

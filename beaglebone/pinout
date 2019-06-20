@@ -1,17 +1,18 @@
 
-DSP board
+SPI1 version
 
-JP4
+SIG     CABLE   VLSI    BB      BB SIG
 
-1 GND
-2 VIN (5V)
-3 DREQ
-4 XDCS
-5 XCD
-6 SCLK
-7 MOSI
-8 MISO
-
+GND     w/bl    1       9.45    GND
+VIN     brown   2       9.7     +5V
+DREQ    w/br    3       9.25    GPIO3_21
+xDCS    gr      4       9.28    GPIO3_17 SPI1_CS0
+xCS     w/gr    5       9.42    GPIO0_7  SPI1_CS1
+SCLK    orange  6       9.31    GPIO3_14 SPI1_SCLK
+MOSI    w/or    7       9.30    GPIO3_16 SPI1_MOSI
+MISO    orange  8       9.29    GPIO3_15 SPI1_MISO
+RST     w/or    12      9.27    GPIO3_19
+GND             13
 
 
 

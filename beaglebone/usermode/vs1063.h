@@ -3,14 +3,17 @@
 #define __vs1063_h_
 
 #include <inttypes.h>
-#include "bbb-memory_map.h"
 
 void vs_assert_xreset();
 void vs_deassert_xreset();
 uint32_t vs_get_dreq();
 
 #define VS_BUFF_SZ      32      // how much data to send in one batch to VS1063
+#define BUFF_SIZE       131072  // read buffer size
+//#define BUFF_SIZE       8096  // read buffer size
 #define VS_DREQ_TMOUT   65535
+
+#define VS_DEFAULT_VOL  0x40
 
 // VS10xx SCI read and write commands
 #define VS_WRITE_COMMAND    0x02
@@ -75,6 +78,34 @@ uint32_t vs_get_dreq();
 #define earSpeakerLevel     0xc0de
 #define ogg_gain_offset     0xc0ea
 
+// vs_sm_state states
+#define VS_SM_IDLE			0x000
+#define VS_SM_INIT          0x001
+#define VS_SM_INIT_VOL_FF	0x001
+#define VS_SM_INIT_REF      0x002
+#define VS_SM_SOFT_RST      0x004
+#define VS_SM_INIT_CLK      0x008
+#define VS_SM_INIT_VOL      0x010
+#define VS_REPLENISH_BUF    0x020
+#define VS_SEND_STREAM      0x040
+#define VS_STOP             0x080
+#define VS_FILL             0x100
+
+// vs_sm_target states
+#define VS_SMT_PLAY			0x001
+#define VS_SMT_STOP			0x002
+
+#define VS_ERR_SPI_INIT		0x1000
+#define VS_ERR_GPIO_ATTACH	0x2000
+#define VS_ERR_GPIO_IRQ  	0x4000
+
+typedef struct {
+	int fd;
+	uint8_t buf[BUFF_SIZE];
+	ssize_t buf_remain;
+	ssize_t read_len;
+} vs_stream_t;
+
 uint16_t vs_read_register(const uint8_t address);
 void vs_write_register(const uint8_t address, const uint16_t value);
 void vs_write_register_hl(const uint8_t address, const uint8_t highbyte, const uint8_t lowbyte);
@@ -85,7 +116,7 @@ uint16_t vs_cancel_play(void);
 uint16_t vs_end_play(void);
 
 uint8_t vs_wait(uint16_t timeout);
-void vs_setup(void);
+int vs_setup(void);
 void vs_close(void);
 void vs_setup_i2s(void);
 void vs_soft_reset(void);
@@ -93,6 +124,11 @@ void vs_set_volume(const uint8_t leftchannel, const uint8_t rightchannel);
 void vs_fill(const uint16_t len);
 void vs_ear_speaker(const uint8_t level);
 
-uint8_t play_file(char *file_path);
+void vs_state_machine(void);
+void set_sm_state(const uint32_t state);
+void set_sm_target(const uint32_t state);
+
+uint8_t play_file(const char *file_path);
+uint8_t play_file_irq(const char *file_path);
 
 #endif
