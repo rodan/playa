@@ -83,6 +83,13 @@ void spi_transfer(uint8_t * rx, uint8_t * tx, const uint16_t len, const int spid
 
     ret = ioctl(spidev_fd, SPI_IOC_MESSAGE(1), tr);
     if (ret < 1) {
+		printf("tx_buf=%llu\n", tr->tx_buf);
+		printf("rx_buf=%llu\n", tr->rx_buf);
+		printf("len=%d\n", tr->len);
+		printf("speed_hz=%d\n", tr->speed_hz);
+		printf("bits_per_word=%d\n", tr->bits_per_word);
+		printf("delay_usecs=%d\n", tr->delay_usecs);
+		printf("cs_change=%d\n", tr->cs_change);
         pabort("can't send spi message");
     }
 }

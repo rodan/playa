@@ -15,7 +15,7 @@
 #include "spi.h"
 #include "vs1063.h"
 
-#define POLL_TIMEOUT (2 * 1000) // 2 seconds
+#define POLL_TIMEOUT 100        // ms
 #define MAX_BUF 64
 
 uint8_t volume = 40;            // as negative attenuation. can go from 0x00 lound - 0xfe silent
@@ -43,14 +43,14 @@ static void print_usage(const char *prog)
 
 void print_vs_registers()
 {
-    printf("SCI_MODE         0x%x\n", vs_read_register(SCI_MODE));
-    printf("SCI_STATUS       0x%x\n", vs_read_register(SCI_STATUS));
-    printf("SCI_CLOCKF       0x%x\n", vs_read_register(SCI_CLOCKF));
-    printf("SCI_DECODE_TIME  0x%x\n", vs_read_register(SCI_DECODE_TIME));
-    printf("SCI_AUDATA       0x%x\n", vs_read_register(SCI_AUDATA));
-    printf("SCI_HDAT0        0x%x\n", vs_read_register(SCI_HDAT0));
-    printf("SCI_HDAT1        0x%x\n", vs_read_register(SCI_HDAT1));
-    printf("SCI_VOL          0x%x\n", vs_read_register(SCI_VOL));
+    printf("SCI_MODE         0x%x\n", vs_read_register(SCI_MODE, VS_BLOCKING));
+    printf("SCI_STATUS       0x%x\n", vs_read_register(SCI_STATUS, VS_BLOCKING));
+    printf("SCI_CLOCKF       0x%x\n", vs_read_register(SCI_CLOCKF, VS_BLOCKING));
+    printf("SCI_DECODE_TIME  0x%x\n", vs_read_register(SCI_DECODE_TIME, VS_BLOCKING));
+    printf("SCI_AUDATA       0x%x\n", vs_read_register(SCI_AUDATA, VS_BLOCKING));
+    printf("SCI_HDAT0        0x%x\n", vs_read_register(SCI_HDAT0, VS_BLOCKING));
+    printf("SCI_HDAT1        0x%x\n", vs_read_register(SCI_HDAT1, VS_BLOCKING));
+    printf("SCI_VOL          0x%x\n", vs_read_register(SCI_VOL, VS_BLOCKING));
 
     printf("DREQ state       0x%x\n", vs_get_dreq());
 }
@@ -84,7 +84,6 @@ int main(int argc, char *argv[])
     int nfds = 1;
     char buf[MAX_BUF];
     char ui_in;
-
 
     while (1) {
         static const struct option lopts[] = {
@@ -124,13 +123,6 @@ int main(int argc, char *argv[])
         printf(" vs_setup() error 0x%x\n", ret);
         exit(1);
     }
-
-    set_sm_target(VS_SMT_STOP);
-    set_sm_state(VS_SM_INIT);
-
-    // start the vs state machine
-    vs_state_machine();
-
     //initialize chip 
     //vs_set_volume(0xff, 0xff);
 
@@ -170,15 +162,20 @@ int main(int argc, char *argv[])
             ret = read(fdset[0].fd, &buf, 1);
             ui_in = buf[0];
             if ((ui_in == 'q') || (ui_in == 'Q')) {
+                vs_end_play();
+                //vs_quit();
                 break;
             } else if ((ui_in == 'i')) {
-				printf("hello\n");
+                printf("# TAG ########################\n");
+            } else if ((ui_in == 'h')) {
+                printf("halting\n");
+                vs_end_play_irq();
             } else if ((ui_in == 'p')) {
-    			play_file_irq(input_file);
-			}
+                vs_play_file(input_file);
+            }
         }
         fflush(stdout);
-	}	
+    }
     vs_close();
 
     return ret;

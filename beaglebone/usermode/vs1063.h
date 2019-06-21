@@ -9,7 +9,7 @@ void vs_deassert_xreset();
 uint32_t vs_get_dreq();
 
 #define VS_BUFF_SZ      32      // how much data to send in one batch to VS1063
-#define BUFF_SIZE       131072  // read buffer size
+#define BUFF_SIZE       131072  // read buffer size, must be > VS_BUFF_SZ
 //#define BUFF_SIZE       8096  // read buffer size
 #define VS_DREQ_TMOUT   65535
 
@@ -79,17 +79,24 @@ uint32_t vs_get_dreq();
 #define ogg_gain_offset     0xc0ea
 
 // vs_sm_state states
-#define VS_SM_IDLE			0x000
-#define VS_SM_INIT          0x001
-#define VS_SM_INIT_VOL_FF	0x001
-#define VS_SM_INIT_REF      0x002
-#define VS_SM_SOFT_RST      0x004
-#define VS_SM_INIT_CLK      0x008
-#define VS_SM_INIT_VOL      0x010
-#define VS_REPLENISH_BUF    0x020
-#define VS_SEND_STREAM      0x040
-#define VS_STOP             0x080
-#define VS_FILL             0x100
+enum vs_sm_state {
+	VS_SM_IDLE = 0,
+	VS_SM_INIT,					// 1
+	VS_SM_INIT_REF,				// 2
+	VS_SM_SOFT_RST,				// 3
+	VS_SM_INIT_VOL,				// 4
+	VS_SM_INIT_CLK,				// 5
+	VS_REPLENISH_BUF, 			// 6
+	VS_SEND_STREAM,				// 7
+	VS_SM_GET_FILL_SIZE,		// 8
+	VS_SM_GET_FILL_SIZE_REPL,	// 9
+	VS_SM_GET_FILL_BYTE_W,		// 10
+	VS_SM_GET_FILL_BYTE_R,		// 11
+	VS_SM_GET_FILL_BYTE_R_REPL,	// 12
+	VS_SM_FILL,					// 13
+	VS_SM_MODE_CANCEL,			// 14
+	VS_SM_FILL_NEXT_STAGE
+};
 
 // vs_sm_target states
 #define VS_SMT_PLAY			0x001
@@ -99,21 +106,29 @@ uint32_t vs_get_dreq();
 #define VS_ERR_GPIO_ATTACH	0x2000
 #define VS_ERR_GPIO_IRQ  	0x4000
 
+#define VS_NON_BLOCKING     0x0
+#define VS_BLOCKING         0x1
+
 typedef struct {
 	int fd;
 	uint8_t buf[BUFF_SIZE];
 	ssize_t buf_remain;
 	ssize_t read_len;
+	uint16_t reg;
+    uint8_t fill_stage;
 } vs_stream_t;
 
-uint16_t vs_read_register(const uint8_t address);
-void vs_write_register(const uint8_t address, const uint16_t value);
-void vs_write_register_hl(const uint8_t address, const uint8_t highbyte, const uint8_t lowbyte);
+uint16_t vs_read_register(const uint8_t address, const uint8_t flags);
+void vs_write_register(const uint8_t address, const uint16_t value, const uint8_t flags);
+void vs_write_register_hl(const uint8_t address, const uint8_t highbyte, const uint8_t lowbyte, const uint8_t flags);
+
+// these two are always blocking
 uint16_t vs_read_wramaddr(const uint16_t address);
 void vs_write_wramaddr(const uint16_t address, const uint16_t value);
 
 uint16_t vs_cancel_play(void);
 uint16_t vs_end_play(void);
+uint16_t vs_end_play_irq(void);
 
 uint8_t vs_wait(uint16_t timeout);
 int vs_setup(void);
@@ -125,10 +140,10 @@ void vs_fill(const uint16_t len);
 void vs_ear_speaker(const uint8_t level);
 
 void vs_state_machine(void);
-void set_sm_state(const uint32_t state);
-void set_sm_target(const uint32_t state);
+void vs_set_state(const uint32_t state);
+void vs_set_target(const uint32_t state);
 
-uint8_t play_file(const char *file_path);
-uint8_t play_file_irq(const char *file_path);
+uint8_t vs_play_file(const char *file_path);
+uint16_t vs_quit(void);
 
 #endif
