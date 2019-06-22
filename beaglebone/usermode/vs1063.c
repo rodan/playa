@@ -18,6 +18,12 @@
 //#include "patches/vs1063a-playflaccrc.plg"
 #include "patches/vs1063a-playpatches.plg"
 
+// How many transferred bytes between collecting data.
+// A value between 1-8 KiB is typically a good value.
+// If REPORT_ON_SCREEN is defined, a report is given on screen each time
+// data is collected.
+#define REPORT_INTERVAL 4096
+
 uint8_t vs_vol_r, vs_vol_l;
 int spidev_fd_xCS, spidev_fd_xDCS;
 struct spi_ioc_transfer tr_xCS, tr_xDCS;
@@ -113,6 +119,41 @@ void vs_write_wramaddr(const uint16_t address, const uint16_t value)
 {
     vs_write_register(SCI_WRAMADDR, address, VS_BLOCKING);
     vs_write_register(SCI_WRAM, value, VS_BLOCKING);
+}
+
+uint8_t vs_xfer_test(uint16_t value1, uint16_t value2)
+{
+    uint16_t ret_val1, ret_val2;
+
+    vs_write_register(SCI_AICTRL1, value1, VS_BLOCKING);
+    vs_write_register(SCI_AICTRL2, value2, VS_BLOCKING);
+
+    ret_val1 = vs_read_register(SCI_AICTRL1, VS_BLOCKING);
+    ret_val2 = vs_read_register(SCI_AICTRL2, VS_BLOCKING);
+
+    if (ret_val1 != value1) {
+        printf("%d != %d\n", ret_val1, value1);
+        return EXIT_FAILURE;
+    }
+    if (ret_val2 != value2) {
+        printf("%d != %d\n", ret_val2, value2);
+        return EXIT_FAILURE;
+    }
+
+    vs_write_register(SCI_AICTRL1, 0, VS_BLOCKING);
+    vs_write_register(SCI_AICTRL2, 0, VS_BLOCKING);
+
+    ret_val1 = vs_read_register(SCI_AICTRL1, VS_BLOCKING);
+    ret_val2 = vs_read_register(SCI_AICTRL2, VS_BLOCKING);
+
+    if (ret_val1 != 0) {
+        return EXIT_FAILURE;
+    }
+    if (ret_val2 != 0) {
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
 }
 
 // wait for VS_DREQ to get HIGH before sending new data to SPI
@@ -245,7 +286,7 @@ uint16_t vs_end_play_irq(void)
     close(vs_stream.fd);
     vs_stream.fd = -1;
     vs_set_target(VS_SMT_STOP);
-    vs_set_state(VS_SM_GET_FILL_SIZE);
+    vs_set_state(VS_SM_FILL);
     vs_stream.fill_stage = 0;
     vs_state_machine();
     return EXIT_SUCCESS;
@@ -258,7 +299,11 @@ uint8_t vs_play_file(const char *file_path)
     }
     memset(vs_stream.buf, 0, BUFF_SIZE);
     vs_stream.buf_remain = 0;
+    vs_stream.file_type = 0;
     vs_stream.fill_stage = 0;
+    vs_stream.fill_byte = 0;
+    vs_stream.data_ctr = 0;
+    vs_stream.data_rep = 0;
     vs_set_target(VS_SMT_PLAY);
     vs_set_state(VS_REPLENISH_BUF);
     // vs1063ds.pdf v1.31 2017-10-06 datasheet states in chapter 11.3 that the soft reset between songs 
@@ -280,18 +325,18 @@ void vs_load_patch(void)
             n &= 0x7FFF;
             val = plugin[i++];
             while (n--) {
-				vs_write_register(addr, val, VS_BLOCKING);
+                vs_write_register(addr, val, VS_BLOCKING);
             }
         } else {                // Copy run, copy n samples
             while (n--) {
                 val = plugin[i++];
-				vs_write_register(addr, val, VS_BLOCKING);
+                vs_write_register(addr, val, VS_BLOCKING);
             }
         }
     }
 }
 
-int vs_setup(void)
+int vs_init(void)
 {
     BBIO_err rl;
 
@@ -317,14 +362,49 @@ int vs_setup(void)
         return VS_ERR_GPIO_ATTACH;
     }
     // initial port states
-    // xreset also bring popping
     vs_assert_xreset();
     usleep(2000);
     vs_deassert_xreset();
     sleep(1);
 
-	vs_load_patch();
+    // software reset
+    vs_write_register(SCI_MODE, SM_SDINEW | SM_RESET | SM_TESTS, VS_BLOCKING);
 
+    // test SPI read/write
+    if (vs_xfer_test(0xe1ac, 0x479b) != EXIT_SUCCESS) {
+        return VS_ERR_SPI_XFER;
+    }
+    // check vlsi chip version
+    if (((vs_read_register(SCI_STATUS, VS_BLOCKING) >> 4) & 15) != 6) {
+        return VS_ERR_WRONG_VS_VER;
+    }
+    // disable audio output
+    vs_write_register_hl(SCI_VOL, 0xff, 0xff, VS_BLOCKING);
+
+    // set vs clock
+    vs_write_register(SCI_CLOCKF, 0xb000, VS_BLOCKING);
+
+    // increase SPI speeds
+    spi_set_speed(spidev_fd_xCS, &tr_xCS, 8000000);
+    spi_set_speed(spidev_fd_xDCS, &tr_xDCS, 8000000);
+
+    usleep(1000);
+
+    // test SPI read/write
+    if (vs_xfer_test(0xabad, 0x7e57) != EXIT_SUCCESS) {
+        return VS_ERR_SPI_XFER;
+    }
+    // AVDD is at least 3.3v, so select 1.65v reference to increase
+    // the analog output swing
+    vs_write_register(SCI_STATUS, SS_REFERENCE_SEL, VS_BLOCKING);
+
+    //vs_load_patch();
+
+    // set the default volume
+    vs_write_register_hl(SCI_VOL, vs_vol_l, vs_vol_r, VS_BLOCKING);
+
+    // from this point onwards all SCI/SDI commands must be VS_NON_BLOCKING
+    // and sent via vs_state_machine()
     rl = add_edge_callback(DREQ_GPIO, vs1063_handler);
     if (rl != 0) {
         return VS_ERR_GPIO_ATTACH;
@@ -332,11 +412,11 @@ int vs_setup(void)
     vs_vol_r = VS_DEFAULT_VOL;
     vs_vol_l = VS_DEFAULT_VOL;
 
-    vs_set_target(VS_SMT_STOP);
-    vs_set_state(VS_SM_INIT);
+    //vs_set_target(VS_SMT_STOP);
+    //vs_set_state(VS_SM_INIT);
 
     // start the vs state machine
-    vs_state_machine();
+    //vs_state_machine();
 
     return EXIT_SUCCESS;
 }
@@ -395,7 +475,7 @@ void vs_state_machine()
                 printf("stream has ended\n");
                 close(vs_stream.fd);
                 vs_stream.fd = -1;
-                vs_sm_state = VS_SM_GET_FILL_SIZE;
+                vs_sm_state = VS_SM_FILL;       // FIXME maybe directly call CANCEL?
                 goto again;
                 break;
             }
@@ -404,6 +484,13 @@ void vs_state_machine()
         // DREQ is unafected at this point
         // fallthrough
     case VS_SEND_STREAM:
+
+        if (vs_stream.data_ctr > vs_stream.data_rep) {
+            vs_stream.data_rep += REPORT_INTERVAL;
+            vs_sm_state = VS_SM_READ_HDAT1;
+            goto again;
+            break;
+        }
         // stop sending if internal buffer is empty or if #DREQ has been asserted
         //printf("%d remain ", vs_stream.buf_remain);
         while (vs_get_dreq()) {
@@ -420,6 +507,7 @@ void vs_state_machine()
                 tr_xDCS.len = tx_len;
                 spi_transfer_sp(spidev_fd_xDCS, &tr_xDCS);
                 vs_stream.buf_remain -= tx_len;
+                vs_stream.data_ctr += tx_len;
             }
 
             if (vs_stream.buf_remain == 0) {
@@ -430,7 +518,7 @@ void vs_state_machine()
                     printf("stream has ended\n");
                     close(vs_stream.fd);
                     vs_stream.fd = -1;
-                    vs_sm_state = VS_SM_GET_FILL_SIZE;
+                    vs_sm_state = VS_SM_FILL;
                     goto again;
                     break;
                 }
@@ -438,13 +526,13 @@ void vs_state_machine()
             }
         }
         break;
-    case VS_SM_GET_FILL_SIZE:
-        printf("VS_SM_GET_FILL_SIZE\n");
-        vs_sm_state = VS_SM_GET_FILL_SIZE_REPL;
+    case VS_SM_READ_HDAT1:
+        printf("VS_SM_READ_HDAT1\n");
+        vs_sm_state = VS_SM_READ_HDAT1_REPL;
         vs_stream.reg = vs_read_register(SCI_HDAT1, VS_NON_BLOCKING);
         break;
-    case VS_SM_GET_FILL_SIZE_REPL:
-        printf("VS_SM_GET_FILL_SIZE_REPL\n");
+    case VS_SM_READ_HDAT1_REPL:
+        printf("VS_SM_READ_HDAT1_REPL\n");
         printf("SCI_HDAT1 0x%x\n", vs_stream.reg);
         if (vs_stream.reg == 0x664c) {
             // flacs need more fill bytes
@@ -453,8 +541,8 @@ void vs_state_machine()
             vs_stream.buf_remain = 2052;
         }
         //printf("%d remain\n", vs_stream.buf_remain);
-        vs_sm_state = VS_SM_GET_FILL_BYTE_W;
-        // fallthrough
+        vs_sm_state = VS_REPLENISH_BUF;
+        break;
     case VS_SM_GET_FILL_BYTE_W:
         printf("VS_SM_GET_FILL_BYTE_W\n");
         vs_sm_state = VS_SM_GET_FILL_BYTE_R;

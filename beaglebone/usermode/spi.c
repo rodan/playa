@@ -20,8 +20,7 @@ int spi_init(const char *device, struct spi_ioc_transfer *tr)
 {
     const uint8_t mode = 0;
     const uint8_t bits = 8;
-    const uint32_t speed = 3000000;
-    //const uint32_t speed = 512000;
+    const uint32_t speed = 400000; // start slow
     const uint16_t delay = 0;
     int ret;
     int spidev_fd;
@@ -68,6 +67,25 @@ int spi_init(const char *device, struct spi_ioc_transfer *tr)
     return spidev_fd;
 }
 
+int spi_set_speed(const int spidev_fd, struct spi_ioc_transfer *tr, const uint32_t speed)
+{
+	int ret;
+    uint32_t speed_set = speed;
+
+    ret = ioctl(spidev_fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed);
+    if (ret == -1) {
+        pabort("can't set SPI speed");
+    }
+
+    ret = ioctl(spidev_fd, SPI_IOC_RD_MAX_SPEED_HZ, &speed_set);
+    if (ret == -1) {
+        printf("can't set SPI speed");
+        return ret;
+    }
+    tr->speed_hz = speed_set;
+    return ret;
+}
+
 void spi_close(const int spidev_fd)
 {
     close(spidev_fd);
@@ -82,6 +100,7 @@ void spi_transfer(uint8_t * rx, uint8_t * tx, const uint16_t len, const int spid
     tr->len = len;
 
     ret = ioctl(spidev_fd, SPI_IOC_MESSAGE(1), tr);
+	printf("speed_hz=%d\n", tr->speed_hz);
     if (ret < 1) {
 		printf("tx_buf=%llu\n", tr->tx_buf);
 		printf("rx_buf=%llu\n", tr->rx_buf);

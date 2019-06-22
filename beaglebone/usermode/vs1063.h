@@ -3,6 +3,7 @@
 #define __vs1063_h_
 
 #include <inttypes.h>
+#include "vs10xx_uc.h"
 
 void vs_assert_xreset();
 void vs_deassert_xreset();
@@ -19,24 +20,7 @@ uint32_t vs_get_dreq();
 #define VS_WRITE_COMMAND    0x02
 #define VS_READ_COMMAND     0x03
 
-// VS10xx SCI Registers
-#define SCI_MODE            0x0
-#define SCI_STATUS          0x1
-#define SCI_BASS            0x2
-#define SCI_CLOCKF          0x3
-#define SCI_DECODE_TIME     0x4
-#define SCI_AUDATA          0x5
-#define SCI_WRAM            0x6
-#define SCI_WRAMADDR        0x7
-#define SCI_HDAT0           0x8
-#define SCI_HDAT1           0x9
-#define SCI_AIADDR          0xa
-#define SCI_VOL             0xb
-#define SCI_AICTRL0         0xc
-#define SCI_AICTRL1         0xd
-#define SCI_AICTRL2         0xe
-#define SCI_AICTRL3         0xf
-
+/*
 // SCI_MODE
 #define SM_DIFF		        0x0001
 #define SM_LAYER12	        0x0002
@@ -54,7 +38,9 @@ uint32_t vs_get_dreq();
 //#define SM_UNKNOWN        0x2000
 #define SM_LINE1            0x4000
 #define SM_CLK_RANGE        0x8000
+*/
 
+/*
 // SCI_STATUS
 #define SS_REFERENCE_SEL    0x0001
 #define SS_AD_CLOCK         0x0002
@@ -72,6 +58,7 @@ uint32_t vs_get_dreq();
 #define SS_SWING2           0x2000
 #define SS_SWING3           0x4000
 #define SS_DO_NOT_JUMP      0x8000
+*/
 
 // parametric_x addresses translated to WRAMADDR
 #define endFillByte         0xc0c6
@@ -80,58 +67,66 @@ uint32_t vs_get_dreq();
 
 // vs_sm_state states
 enum vs_sm_state {
-	VS_SM_IDLE = 0,
-	VS_SM_INIT,					// 1
-	VS_SM_INIT_REF,				// 2
-	VS_SM_SOFT_RST,				// 3
-	VS_SM_INIT_VOL,				// 4
-	VS_SM_INIT_CLK,				// 5
-	VS_REPLENISH_BUF, 			// 6
-	VS_SEND_STREAM,				// 7
-	VS_SM_GET_FILL_SIZE,		// 8
-	VS_SM_GET_FILL_SIZE_REPL,	// 9
-	VS_SM_GET_FILL_BYTE_W,		// 10
-	VS_SM_GET_FILL_BYTE_R,		// 11
-	VS_SM_GET_FILL_BYTE_R_REPL,	// 12
-	VS_SM_FILL,					// 13
-	VS_SM_MODE_CANCEL,			// 14
-	VS_SM_FILL_NEXT_STAGE
+    VS_SM_IDLE = 0,
+    VS_SM_INIT,                 // 1
+    VS_SM_INIT_REF,             // 2
+    VS_SM_SOFT_RST,             // 3
+    VS_SM_INIT_VOL,             // 4
+    VS_SM_INIT_CLK,             // 5
+    VS_REPLENISH_BUF,           // 6
+    VS_SEND_STREAM,             // 7
+    VS_SM_READ_HDAT1,           // 8
+    VS_SM_READ_HDAT1_REPL,      // 9
+    VS_SM_GET_FILL_BYTE_W,      // 10
+    VS_SM_GET_FILL_BYTE_R,      // 11
+    VS_SM_GET_FILL_BYTE_R_REPL, // 12
+    VS_SM_FILL,                 // 13
+    VS_SM_MODE_CANCEL,          // 14
+    VS_SM_FILL_NEXT_STAGE
 };
 
 // vs_sm_target states
-#define VS_SMT_PLAY			0x001
-#define VS_SMT_STOP			0x002
+#define VS_SMT_PLAY			0x1
+#define VS_SMT_STOP			0x2
 
-#define VS_ERR_SPI_INIT		0x1000
-#define VS_ERR_GPIO_ATTACH	0x2000
-#define VS_ERR_GPIO_IRQ  	0x4000
+#define VS_ERR_SPI_INIT     0x201
+#define VS_ERR_SPI_XFER     0x202
+#define VS_ERR_GPIO_ATTACH  0x203
+#define VS_ERR_GPIO_IRQ     0x204
+#define VS_ERR_WRONG_VS_VER 0x205
 
 #define VS_NON_BLOCKING     0x0
 #define VS_BLOCKING         0x1
 
 typedef struct {
-	int fd;
-	uint8_t buf[BUFF_SIZE];
-	ssize_t buf_remain;
-	ssize_t read_len;
-	uint16_t reg;
-    uint8_t fill_stage;
+    int fd;
+    uint8_t buf[BUFF_SIZE];
+    ssize_t buf_remain;         // bytes left unsent from buf
+    ssize_t data_ctr;           // counter for the number of data bytes sent
+    ssize_t data_rep;           // counter position for when reports are calculated
+    ssize_t read_len;           // temporary read counter
+    uint16_t file_type;         // SCI_HDAT1 register
+    uint8_t fill_byte;          // data byte to be used for filling
+    uint8_t fill_stage;         // state machine stage counter for filling
+    uint16_t reg;               // temporary vs register
 } vs_stream_t;
 
 uint16_t vs_read_register(const uint8_t address, const uint8_t flags);
 void vs_write_register(const uint8_t address, const uint16_t value, const uint8_t flags);
-void vs_write_register_hl(const uint8_t address, const uint8_t highbyte, const uint8_t lowbyte, const uint8_t flags);
+void vs_write_register_hl(const uint8_t address, const uint8_t highbyte, const uint8_t lowbyte,
+                          const uint8_t flags);
 
-// these two are always blocking
+// always blocking functions:
 uint16_t vs_read_wramaddr(const uint16_t address);
 void vs_write_wramaddr(const uint16_t address, const uint16_t value);
+uint8_t vs_xfer_test(uint16_t value1, uint16_t value2);
 
 uint16_t vs_cancel_play(void);
 uint16_t vs_end_play(void);
 uint16_t vs_end_play_irq(void);
 
 uint8_t vs_wait(uint16_t timeout);
-int vs_setup(void);
+int vs_init(void);
 void vs_close(void);
 void vs_setup_i2s(void);
 void vs_soft_reset(void);

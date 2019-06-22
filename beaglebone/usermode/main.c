@@ -118,7 +118,7 @@ int main(int argc, char *argv[])
     // stdin irq triggers before /n
     disable_waiting_for_enter();
 
-    ret = vs_setup();
+    ret = vs_init();
     if (ret) {
         printf(" vs_setup() error 0x%x\n", ret);
         exit(1);
