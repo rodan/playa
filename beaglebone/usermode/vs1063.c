@@ -281,12 +281,52 @@ void vs_ear_speaker(const uint8_t level)
     vs_write_wramaddr(earSpeakerLevel, ear_speaker_level[level % 4]);
 }
 
+uint16_t vs_get_fill_cnt(const uint16_t file_type)
+{
+    if (file_type == 0x7665) {
+        //printf("Riff\n");
+        return SDI_END_FILL_BYTES;
+    } else if (file_type == 0x4154) {
+        //printf("AacAdts\n");
+        return SDI_END_FILL_BYTES;
+    } else if (file_type == 0x4144) {
+        //printf("AacAdif\n");
+        return SDI_END_FILL_BYTES;
+    } else if (file_type == 0x574d) {
+        //printf("afWma\n");
+        return SDI_END_FILL_BYTES;
+    } else if (file_type == 0x4f67) {
+        //printf("OggVorbis\n");
+        return SDI_END_FILL_BYTES;
+    } else if (file_type == 0x664c) {
+        //printf("Flac\n");
+        return SDI_END_FILL_BYTES_FLAC;
+    } else if (file_type == 0x4d34) {
+        //printf("AacMp4\n");
+        return SDI_END_FILL_BYTES;
+    } else if ((file_type & 0xFFE6) == 0xFFE2) {
+        //printf("Mp3\n");
+        return SDI_END_FILL_BYTES;
+    } else if ((file_type & 0xFFE6) == 0xFFE4) {
+        //printf("Mp2\n");
+        return SDI_END_FILL_BYTES;
+    } else if ((file_type & 0xFFE6) == 0xFFE6) {
+        //printf("Mp1\n");
+        return SDI_END_FILL_BYTES;
+    } else {
+        //printf("Unknown\n");
+        return SDI_END_FILL_BYTES_FLAC;
+    }
+
+    return SDI_END_FILL_BYTES_FLAC;
+}
+
 uint16_t vs_end_play_irq(void)
 {
     close(vs_stream.fd);
     vs_stream.fd = -1;
     vs_set_target(VS_SMT_STOP);
-    vs_set_state(VS_SM_FILL);
+    vs_set_state(VS_SM_MODE_CANCEL);
     vs_stream.fill_stage = 0;
     vs_state_machine();
     return EXIT_SUCCESS;
@@ -303,13 +343,11 @@ uint8_t vs_play_file(const char *file_path)
     vs_stream.fill_stage = 0;
     vs_stream.fill_byte = 0;
     vs_stream.data_ctr = 0;
-    vs_stream.data_rep = 0;
+    vs_stream.data_rep = REPORT_INTERVAL;
     vs_set_target(VS_SMT_PLAY);
-    vs_set_state(VS_REPLENISH_BUF);
-    // vs1063ds.pdf v1.31 2017-10-06 datasheet states in chapter 11.3 that the soft reset between songs 
-    // is not needed on this chip, but it's missing then no sound comes out during new play
-    //vs_set_state(VS_SM_SOFT_RST);
+    vs_set_state(VS_RST_DECODE_TIME);
     vs_state_machine();
+
     return EXIT_SUCCESS;
 }
 
@@ -367,7 +405,7 @@ int vs_init(void)
     vs_deassert_xreset();
     sleep(1);
 
-    // software reset
+    // software reset, chip init
     vs_write_register(SCI_MODE, SM_SDINEW | SM_RESET | SM_TESTS, VS_BLOCKING);
 
     // test SPI read/write
@@ -385,20 +423,23 @@ int vs_init(void)
     vs_write_register(SCI_CLOCKF, 0xb000, VS_BLOCKING);
 
     // increase SPI speeds
-    spi_set_speed(spidev_fd_xCS, &tr_xCS, 8000000);
-    spi_set_speed(spidev_fd_xDCS, &tr_xDCS, 8000000);
-
-    usleep(1000);
+    spi_set_speed(spidev_fd_xCS, &tr_xCS, 2000000);
+    spi_set_speed(spidev_fd_xDCS, &tr_xDCS, 2000000);
 
     // test SPI read/write
     if (vs_xfer_test(0xabad, 0x7e57) != EXIT_SUCCESS) {
         return VS_ERR_SPI_XFER;
     }
+    // Declick: Slow sample rate for slow analog part startup
+    vs_write_register_hl(SCI_AUDATA, 0, 10, VS_BLOCKING);       // 10Hz
+    // Switch on the analog parts
+    vs_write_register_hl(SCI_AUDATA, 0xac, 0x45, VS_BLOCKING);  // 44100Hz, stereo
+
     // AVDD is at least 3.3v, so select 1.65v reference to increase
     // the analog output swing
     vs_write_register(SCI_STATUS, SS_REFERENCE_SEL, VS_BLOCKING);
 
-    //vs_load_patch();
+    vs_load_patch();
 
     // set the default volume
     vs_write_register_hl(SCI_VOL, vs_vol_l, vs_vol_r, VS_BLOCKING);
@@ -412,12 +453,6 @@ int vs_init(void)
     vs_vol_r = VS_DEFAULT_VOL;
     vs_vol_l = VS_DEFAULT_VOL;
 
-    //vs_set_target(VS_SMT_STOP);
-    //vs_set_state(VS_SM_INIT);
-
-    // start the vs state machine
-    //vs_state_machine();
-
     return EXIT_SUCCESS;
 }
 
@@ -427,40 +462,12 @@ void vs_state_machine()
 
  again:
     switch (vs_sm_state) {
-    case VS_SM_IDLE:           // 0
+    case VS_SM_IDLE:
         printf("VS_SM_IDLE\n");
         break;
-    case VS_SM_INIT:           // 1
-        printf("VS_SM_INIT\n");
-        vs_sm_state = VS_SM_INIT_REF;
-        vs_write_register_hl(SCI_VOL, 0xff, 0xff, VS_NON_BLOCKING);
-        break;
-    case VS_SM_INIT_REF:
-        printf("VS_SM_INIT_REF\n");
-        //AVDD is at least 3.3v, so select 1.65v reference to increase
-        //the analog output swing
-        vs_sm_state = VS_SM_INIT_VOL;
-        vs_write_register(SCI_STATUS, SS_REFERENCE_SEL, VS_NON_BLOCKING);
-        break;
-    case VS_SM_INIT_VOL:
-        printf("VS_SM_INIT_VOL\n");
-        vs_sm_state = VS_SM_INIT_CLK;
-        vs_write_register_hl(SCI_VOL, vs_vol_l, vs_vol_r, VS_NON_BLOCKING);
-        break;
-    case VS_SM_SOFT_RST:
-        printf("VS_SM_SOFT_RST\n");
+    case VS_RST_DECODE_TIME:
+        vs_write_register(SCI_DECODE_TIME, 0, VS_NON_BLOCKING);
         vs_sm_state = VS_REPLENISH_BUF;
-        vs_write_register(SCI_MODE, SM_SDINEW | SM_RESET, VS_NON_BLOCKING);
-        break;
-    case VS_SM_INIT_CLK:
-        printf("VS_SM_INIT_CLK\n");
-        if (vs_sm_target == VS_SMT_PLAY) {
-            vs_sm_state = VS_REPLENISH_BUF;
-            //fd_debug = open("/tmp/ff", O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
-        } else {
-            vs_sm_state = VS_SM_IDLE;
-        }
-        vs_write_register(SCI_CLOCKF, 0xb000, VS_NON_BLOCKING);
         break;
     case VS_REPLENISH_BUF:
         if (vs_stream.fd < 1) {
@@ -475,7 +482,7 @@ void vs_state_machine()
                 printf("stream has ended\n");
                 close(vs_stream.fd);
                 vs_stream.fd = -1;
-                vs_sm_state = VS_SM_FILL;       // FIXME maybe directly call CANCEL?
+                vs_sm_state = VS_SM_MODE_CANCEL;
                 goto again;
                 break;
             }
@@ -484,13 +491,6 @@ void vs_state_machine()
         // DREQ is unafected at this point
         // fallthrough
     case VS_SEND_STREAM:
-
-        if (vs_stream.data_ctr > vs_stream.data_rep) {
-            vs_stream.data_rep += REPORT_INTERVAL;
-            vs_sm_state = VS_SM_READ_HDAT1;
-            goto again;
-            break;
-        }
         // stop sending if internal buffer is empty or if #DREQ has been asserted
         //printf("%d remain ", vs_stream.buf_remain);
         while (vs_get_dreq()) {
@@ -518,47 +518,90 @@ void vs_state_machine()
                     printf("stream has ended\n");
                     close(vs_stream.fd);
                     vs_stream.fd = -1;
-                    vs_sm_state = VS_SM_FILL;
+                    vs_sm_state = VS_SM_MODE_CANCEL;
                     goto again;
                     break;
                 }
                 vs_stream.buf_remain = vs_stream.read_len;
             }
         }
-        break;
-    case VS_SM_READ_HDAT1:
-        printf("VS_SM_READ_HDAT1\n");
-        vs_sm_state = VS_SM_READ_HDAT1_REPL;
-        vs_stream.reg = vs_read_register(SCI_HDAT1, VS_NON_BLOCKING);
-        break;
-    case VS_SM_READ_HDAT1_REPL:
-        printf("VS_SM_READ_HDAT1_REPL\n");
-        printf("SCI_HDAT1 0x%x\n", vs_stream.reg);
-        if (vs_stream.reg == 0x664c) {
-            // flacs need more fill bytes
-            vs_stream.buf_remain = 12288;
-        } else {
-            vs_stream.buf_remain = 2052;
+        // DREQ is now low, do some maintenance
+        // refresh stream play status report if needed
+        if (vs_stream.data_ctr > vs_stream.data_rep) {
+            vs_stream.fill_cnt = vs_get_fill_cnt(vs_stream.file_type);
+            printf("0x%x, 0x%x, %u\n", vs_stream.file_type, vs_stream.fill_byte,
+                   vs_stream.fill_cnt);
+            vs_stream.data_rep = vs_stream.data_ctr + REPORT_INTERVAL;
+
+            if (!vs_stream.file_type) {
+                vs_sm_state = VS_SM_READ_HDAT1;
+                goto again;
+                break;
+            }
+
+            vs_sm_state = VS_SM_GET_FILL_BYTE;
+            goto again;
+            break;
         }
-        //printf("%d remain\n", vs_stream.buf_remain);
-        vs_sm_state = VS_REPLENISH_BUF;
+
         break;
-    case VS_SM_GET_FILL_BYTE_W:
-        printf("VS_SM_GET_FILL_BYTE_W\n");
+    case VS_SM_GET_REPORT:
+        // fallthrough
+    case VS_SM_READ_HDAT1:
+        //printf("VS_SM_READ_HDAT1 at %d\n", vs_stream.data_ctr);
+        if (vs_stream.fill_byte) {
+            // we already got the fill_byte
+            vs_sm_state = VS_REPLENISH_BUF;
+            goto again;
+            break;
+        } else {
+            vs_sm_state = VS_SM_GET_FILL_BYTE;
+        }
+        vs_stream.file_type = vs_read_register(SCI_HDAT1, VS_NON_BLOCKING);
+        break;
+/*
+    case VS_SM_GET_FILL_BYTE:
         vs_sm_state = VS_SM_GET_FILL_BYTE_R;
-        vs_write_register(SCI_WRAMADDR, endFillByte, VS_NON_BLOCKING);
+        vs_write_register(SCI_WRAMADDR, PAR_END_FILL_BYTE, VS_NON_BLOCKING);
         break;
     case VS_SM_GET_FILL_BYTE_R:
-        printf("VS_SM_GET_FILL_BYTE_R\n");
-        vs_sm_state = VS_SM_GET_FILL_BYTE_R_REPL;
-        vs_stream.reg = vs_read_register(SCI_WRAM, VS_NON_BLOCKING);
+        vs_sm_state = VS_REPLENISH_BUF;
+        vs_stream.fill_byte = vs_read_register(SCI_WRAM, VS_NON_BLOCKING);
         break;
-    case VS_SM_GET_FILL_BYTE_R_REPL:
-        printf("VS_SM_GET_FILL_BYTE_R_REPL\n");
-        printf("fill_byte 0x%x\n", (uint8_t) vs_stream.reg);
-        memset(vs_stream.buf, (uint8_t) vs_stream.reg, VS_BUFF_SZ);
-        vs_sm_state = VS_SM_FILL;
-        // fallthrough
+*/
+    case VS_SM_GET_FILL_BYTE:
+        // ignore the most-probably low DREQ and send the SCI commands
+        vs_sm_state = VS_REPLENISH_BUF;
+        vs_write_register(SCI_WRAMADDR, PAR_END_FILL_BYTE, VS_NON_BLOCKING);
+        vs_stream.fill_byte = vs_read_register(SCI_WRAM, VS_NON_BLOCKING);
+        break;
+    case VS_SM_MODE_CANCEL:
+        printf("VS_SM_MODE_CANCEL\n");
+        vs_sm_state = VS_SM_CHECK_CANCEL;
+        vs_write_register(SCI_MODE, SM_SDINEW | SM_CANCEL, VS_NON_BLOCKING);
+        break;
+    case VS_SM_CHECK_CANCEL:
+        printf("VS_SM_CHECK_CANCEL\n");
+        vs_sm_state = VS_SM_FILL_MNGR;
+        vs_stream.reg = vs_read_register(SCI_MODE, VS_NON_BLOCKING);
+        break;
+    case VS_SM_FILL_MNGR:
+        printf("reg is 0x%x\n", vs_stream.reg);
+        if ((vs_stream.reg & SM_CANCEL) == 0) {
+            vs_sm_state = VS_SM_IDLE;
+            goto again;
+            break;
+        } else {
+            if (vs_stream.fill_stage == 0) {
+                memset(vs_stream.buf, vs_stream.fill_byte, BUFF_SIZE);
+                vs_stream.buf_remain = vs_stream.fill_cnt;
+                vs_stream.fill_stage = 0;
+                vs_sm_state = VS_SM_FILL;
+                goto again;
+                break;
+            }                   // FIXME add stage1,2 of fill
+        }
+        break;
     case VS_SM_FILL:
         printf("VS_SM_FILL %d\n", vs_stream.fill_stage);
         while (vs_get_dreq()) {
@@ -577,28 +620,12 @@ void vs_state_machine()
             }
 
             if (vs_stream.buf_remain == 0) {
+                vs_stream.fill_stage++;
                 vs_sm_state = VS_SM_MODE_CANCEL;
                 goto again;
                 break;
             }
         }
-        break;
-    case VS_SM_MODE_CANCEL:
-        printf("VS_SM_MODE_CANCEL\n");
-        if (vs_stream.fill_stage == 0) {
-            vs_sm_state = VS_SM_FILL_NEXT_STAGE;
-        } else if (vs_stream.fill_stage == 1) {
-            vs_sm_state = VS_SM_IDLE;
-            goto again;
-        }
-        vs_write_register(SCI_MODE, SM_CANCEL, VS_NON_BLOCKING);
-        break;
-    case VS_SM_FILL_NEXT_STAGE:
-        printf("VS_SM_FILL_NEXT_STAGE\n");
-        vs_stream.buf_remain = 2048;
-        vs_stream.fill_stage = 1;
-        vs_sm_state = VS_SM_FILL;
-        goto again;
         break;
     }
 }

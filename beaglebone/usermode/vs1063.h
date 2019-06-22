@@ -14,6 +14,10 @@ uint32_t vs_get_dreq();
 //#define BUFF_SIZE       8096  // read buffer size
 #define VS_DREQ_TMOUT   65535
 
+#define SDI_END_FILL_BYTES_FLAC 12288
+#define SDI_END_FILL_BYTES       2050
+
+
 #define VS_DEFAULT_VOL  0x40
 
 // VS10xx SCI read and write commands
@@ -73,16 +77,16 @@ enum vs_sm_state {
     VS_SM_SOFT_RST,             // 3
     VS_SM_INIT_VOL,             // 4
     VS_SM_INIT_CLK,             // 5
+    VS_RST_DECODE_TIME,         // 
     VS_REPLENISH_BUF,           // 6
     VS_SEND_STREAM,             // 7
-    VS_SM_READ_HDAT1,           // 8
-    VS_SM_READ_HDAT1_REPL,      // 9
-    VS_SM_GET_FILL_BYTE_W,      // 10
-    VS_SM_GET_FILL_BYTE_R,      // 11
-    VS_SM_GET_FILL_BYTE_R_REPL, // 12
-    VS_SM_FILL,                 // 13
-    VS_SM_MODE_CANCEL,          // 14
-    VS_SM_FILL_NEXT_STAGE
+    VS_SM_GET_REPORT,           // 
+    VS_SM_READ_HDAT1,           // 
+    VS_SM_GET_FILL_BYTE,        // 
+	VS_SM_FILL_MNGR,	
+    VS_SM_FILL,                 // 
+    VS_SM_MODE_CANCEL,          // 
+	VS_SM_CHECK_CANCEL
 };
 
 // vs_sm_target states
@@ -107,7 +111,8 @@ typedef struct {
     ssize_t read_len;           // temporary read counter
     uint16_t file_type;         // SCI_HDAT1 register
     uint8_t fill_byte;          // data byte to be used for filling
-    uint8_t fill_stage;         // state machine stage counter for filling
+    uint16_t fill_cnt;          // number of bytes to be sent as fill
+    int8_t fill_stage;          // state machine stage counter for filling
     uint16_t reg;               // temporary vs register
 } vs_stream_t;
 
