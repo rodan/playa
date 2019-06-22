@@ -22,7 +22,7 @@
 // A value between 1-8 KiB is typically a good value.
 // If REPORT_ON_SCREEN is defined, a report is given on screen each time
 // data is collected.
-#define REPORT_INTERVAL 4096
+#define REPORT_INTERVAL 8192
 
 uint8_t vs_vol_r, vs_vol_l;
 int spidev_fd_xCS, spidev_fd_xDCS;
@@ -529,8 +529,8 @@ void vs_state_machine()
         // refresh stream play status report if needed
         if (vs_stream.data_ctr > vs_stream.data_rep) {
             vs_stream.fill_cnt = vs_get_fill_cnt(vs_stream.file_type);
-            printf("0x%x, 0x%x, %u\n", vs_stream.file_type, vs_stream.fill_byte,
-                   vs_stream.fill_cnt);
+            //printf("0x%x, 0x%x, %u\n", vs_stream.file_type, vs_stream.fill_byte,
+            //       vs_stream.fill_cnt);
             vs_stream.data_rep = vs_stream.data_ctr + REPORT_INTERVAL;
 
             if (!vs_stream.file_type) {
@@ -577,6 +577,7 @@ void vs_state_machine()
         break;
     case VS_SM_MODE_CANCEL:
         printf("VS_SM_MODE_CANCEL\n");
+        memset(vs_stream.buf, vs_stream.fill_byte, BUFF_SIZE);
         vs_sm_state = VS_SM_CHECK_CANCEL;
         vs_write_register(SCI_MODE, SM_SDINEW | SM_CANCEL, VS_NON_BLOCKING);
         break;
@@ -586,14 +587,15 @@ void vs_state_machine()
         vs_stream.reg = vs_read_register(SCI_MODE, VS_NON_BLOCKING);
         break;
     case VS_SM_FILL_MNGR:
+        printf("VS_SM_FILL_MNGR\n");
         printf("reg is 0x%x\n", vs_stream.reg);
-        if ((vs_stream.reg & SM_CANCEL) == 0) {
+        //if ((vs_stream.reg & SM_CANCEL) == 0) {
+        if (vs_stream.reg == 0x800) {
             vs_sm_state = VS_SM_IDLE;
             goto again;
             break;
         } else {
             if (vs_stream.fill_stage == 0) {
-                memset(vs_stream.buf, vs_stream.fill_byte, BUFF_SIZE);
                 vs_stream.buf_remain = vs_stream.fill_cnt;
                 vs_stream.fill_stage = 0;
                 vs_sm_state = VS_SM_FILL;
