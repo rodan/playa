@@ -826,7 +826,6 @@ void remove_edge_detect(unsigned int gpio)
     //clear event
     gpio_event_remove(gpio);
 
-
     // clear detected flag
     event_occurred[gpio] = 0;
 

@@ -136,7 +136,7 @@ void vs_close(void);
 void vs_setup_i2s(void);
 void vs_soft_reset(void);
 void vs_set_volume(const uint8_t leftchannel, const uint8_t rightchannel);
-void vs_fill(const uint16_t len);
+void vs_fill(const uint8_t fill_byte, const uint16_t len);
 void vs_ear_speaker(const uint8_t level);
 
 void vs_state_machine(void);

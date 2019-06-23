@@ -178,16 +178,13 @@ static void vs1063_handler(unsigned int gpio)
 void vs_close()
 {
     // switch to blocking functions after the IRQ is disabled
-    vs_set_target(VS_SMT_STOP);
-    vs_set_state(VS_SM_IDLE);
+    //vs_set_target(VS_SMT_STOP);
+    //vs_set_state(VS_SM_IDLE);
     remove_edge_detect(DREQ_GPIO);
+    usleep(1000);
 
-    vs_set_volume(0xfe, 0xfe);
+    //vs_set_volume(0xfe, 0xfe);
     vs_end_play();
-
-    usleep(2000);
-    // there is no popping sound without the reset
-    //vs_assert_xreset();
 
     close(spidev_fd_xCS);
     close(spidev_fd_xDCS);
@@ -227,46 +224,44 @@ uint16_t vs_end_play(void)
     uint8_t i = 0;
     uint16_t rv;
 
-    if (vs_stream.fd != -1) {
+    if ((vs_stream.fd != -1) && (vs_sm_state == VS_REPLENISH_BUF)) {
         close(vs_stream.fd);
         vs_stream.fd = -1;
-    }
-
-    if (vs_read_register(SCI_HDAT1, VS_BLOCKING) == 0x664c) {
-        vs_fill(12288);
-    } else {
-        vs_fill(2052);
-    }
-    vs_write_register(SCI_MODE, SM_CANCEL, VS_BLOCKING);
-    vs_fill(32);
-    while (vs_read_register(SCI_MODE, VS_BLOCKING) & SM_CANCEL) {
-        vs_fill(32);
-        i++;
-        if (i == 64) {
-            vs_soft_reset();
-            break;
+        vs_write_register(SCI_MODE, SM_CANCEL, VS_BLOCKING);
+        if (vs_stream.fill_cnt) {
+            vs_fill(vs_stream.fill_byte, vs_stream.fill_cnt);
         }
+
+        vs_write_register(SCI_MODE, SM_CANCEL, VS_BLOCKING);
+        vs_fill(vs_stream.fill_byte, 32);
+        while (vs_read_register(SCI_MODE, VS_BLOCKING) & SM_CANCEL) {
+            vs_fill(vs_stream.fill_byte, 32);
+            i++;
+            if (i == 64) {
+                vs_soft_reset();
+                break;
+            }
+        }
+        vs_sm_state = VS_SM_IDLE;
     }
     rv = vs_read_register(SCI_HDAT1, VS_BLOCKING);
     return rv;
 }
 
-void vs_fill(const uint16_t len)
+void vs_fill(const uint8_t fill_byte, const uint16_t len)
 {
-    uint8_t buff[VS_BUFF_SZ];
-    uint8_t fill;
+    uint8_t buf[VS_BUFF_SZ];
     uint16_t i = 0;
 
-    fill = vs_read_wramaddr(endFillByte);
-    memset(buff, fill, VS_BUFF_SZ);
+    memset(buf, fill_byte, VS_BUFF_SZ);
 
     for (i = 0; i < (len / VS_BUFF_SZ); i++) {
         vs_wait(VS_DREQ_TMOUT);
-        spi_transfer(NULL, buff, VS_BUFF_SZ, spidev_fd_xDCS, &tr_xDCS);
+        spi_transfer(NULL, buf, VS_BUFF_SZ, spidev_fd_xDCS, &tr_xDCS);
     }
     if (len % VS_BUFF_SZ) {
         vs_wait(VS_DREQ_TMOUT);
-        spi_transfer(NULL, buff, len % VS_BUFF_SZ, spidev_fd_xDCS, &tr_xDCS);
+        spi_transfer(NULL, buf, len % VS_BUFF_SZ, spidev_fd_xDCS, &tr_xDCS);
     }
 }
 
@@ -284,37 +279,37 @@ void vs_ear_speaker(const uint8_t level)
 uint16_t vs_get_fill_cnt(const uint16_t file_type)
 {
     if (file_type == 0x7665) {
-        //printf("Riff\n");
+        //printf("riff\n");
         return SDI_END_FILL_BYTES;
     } else if (file_type == 0x4154) {
-        //printf("AacAdts\n");
+        //printf("aacAdts\n");
         return SDI_END_FILL_BYTES;
     } else if (file_type == 0x4144) {
-        //printf("AacAdif\n");
+        //printf("aacAdif\n");
         return SDI_END_FILL_BYTES;
     } else if (file_type == 0x574d) {
-        //printf("afWma\n");
+        //printf("wma\n");
         return SDI_END_FILL_BYTES;
     } else if (file_type == 0x4f67) {
         //printf("OggVorbis\n");
         return SDI_END_FILL_BYTES;
     } else if (file_type == 0x664c) {
-        //printf("Flac\n");
+        //printf("flac\n");
         return SDI_END_FILL_BYTES_FLAC;
     } else if (file_type == 0x4d34) {
-        //printf("AacMp4\n");
+        //printf("aacMp4\n");
         return SDI_END_FILL_BYTES;
-    } else if ((file_type & 0xFFE6) == 0xFFE2) {
-        //printf("Mp3\n");
+    } else if ((file_type & 0xffe6) == 0xffe2) {
+        //printf("mp3\n");
         return SDI_END_FILL_BYTES;
-    } else if ((file_type & 0xFFE6) == 0xFFE4) {
-        //printf("Mp2\n");
+    } else if ((file_type & 0xffe6) == 0xffe4) {
+        //printf("mp2\n");
         return SDI_END_FILL_BYTES;
-    } else if ((file_type & 0xFFE6) == 0xFFE6) {
-        //printf("Mp1\n");
+    } else if ((file_type & 0xffe6) == 0xffe6) {
+        //printf("mp1\n");
         return SDI_END_FILL_BYTES;
     } else {
-        //printf("Unknown\n");
+        //printf("unknown\n");
         return SDI_END_FILL_BYTES_FLAC;
     }
 
@@ -508,7 +503,7 @@ void vs_state_machine()
 
             if (vs_stream.buf_remain == 0) {
                 // get more data
-                memset(vs_stream.buf, 0, BUFF_SIZE);
+                memset(vs_stream.buf, vs_stream.fill_byte, BUFF_SIZE);
                 vs_stream.read_len = read(vs_stream.fd, vs_stream.buf, BUFF_SIZE);
                 if (vs_stream.read_len == 0) {
                     printf("stream has ended\n");
