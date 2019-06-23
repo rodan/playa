@@ -561,16 +561,6 @@ void vs_state_machine()
         }
         vs_stream.file_type = vs_read_register(SCI_HDAT1, VS_NON_BLOCKING);
         break;
-/*
-    case VS_SM_GET_FILL_BYTE:
-        vs_sm_state = VS_SM_GET_FILL_BYTE_R;
-        vs_write_register(SCI_WRAMADDR, PAR_END_FILL_BYTE, VS_NON_BLOCKING);
-        break;
-    case VS_SM_GET_FILL_BYTE_R:
-        vs_sm_state = VS_REPLENISH_BUF;
-        vs_stream.fill_byte = vs_read_register(SCI_WRAM, VS_NON_BLOCKING);
-        break;
-*/
     case VS_SM_GET_FILL_BYTE:
         // ignore the most-probably low DREQ and send the SCI commands
         vs_sm_state = VS_REPLENISH_BUF;
@@ -591,13 +581,11 @@ void vs_state_machine()
     case VS_SM_FILL_MNGR:
         printf("VS_SM_FILL_MNGR\n");
         printf("reg is 0x%x\n", vs_stream.reg);
-        //if ((vs_stream.reg & SM_CANCEL) == 0) {
-        if (vs_stream.reg == 0x800) {
+        if ((vs_stream.reg & SM_CANCEL) == 0) {
             if (vs_stream.fd != -1) {
                 close(vs_stream.fd);
                 vs_stream.fd = -1;
             }
-
             vs_sm_state = VS_SM_IDLE;
             goto again;
             break;
