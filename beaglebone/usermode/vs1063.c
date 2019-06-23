@@ -323,12 +323,8 @@ uint16_t vs_get_fill_cnt(const uint16_t file_type)
 
 uint16_t vs_end_play_irq(void)
 {
-    close(vs_stream.fd);
-    vs_stream.fd = -1;
     vs_set_target(VS_SMT_STOP);
     vs_set_state(VS_SM_MODE_CANCEL);
-    vs_stream.fill_stage = 0;
-    vs_state_machine();
     return EXIT_SUCCESS;
 }
 
@@ -533,6 +529,12 @@ void vs_state_machine()
             //       vs_stream.fill_cnt);
             vs_stream.data_rep = vs_stream.data_ctr + REPORT_INTERVAL;
 
+            // detect if the vs_sm_state has been modified from the main thread
+            if (vs_sm_state != VS_REPLENISH_BUF) {
+                goto again;
+                break;
+            }
+
             if (!vs_stream.file_type) {
                 vs_sm_state = VS_SM_READ_HDAT1;
                 goto again;
@@ -577,8 +579,8 @@ void vs_state_machine()
         break;
     case VS_SM_MODE_CANCEL:
         printf("VS_SM_MODE_CANCEL\n");
-        memset(vs_stream.buf, vs_stream.fill_byte, BUFF_SIZE);
         vs_sm_state = VS_SM_CHECK_CANCEL;
+        memset(vs_stream.buf, vs_stream.fill_byte, BUFF_SIZE);
         vs_write_register(SCI_MODE, SM_SDINEW | SM_CANCEL, VS_NON_BLOCKING);
         break;
     case VS_SM_CHECK_CANCEL:
@@ -591,6 +593,11 @@ void vs_state_machine()
         printf("reg is 0x%x\n", vs_stream.reg);
         //if ((vs_stream.reg & SM_CANCEL) == 0) {
         if (vs_stream.reg == 0x800) {
+            if (vs_stream.fd != -1) {
+                close(vs_stream.fd);
+                vs_stream.fd = -1;
+            }
+
             vs_sm_state = VS_SM_IDLE;
             goto again;
             break;
@@ -598,6 +605,10 @@ void vs_state_machine()
             if (vs_stream.fill_stage == 0) {
                 vs_stream.buf_remain = vs_stream.fill_cnt;
                 vs_stream.fill_stage = 0;
+                if (vs_stream.fd != -1) {
+                    close(vs_stream.fd);
+                    vs_stream.fd = -1;
+                }
                 vs_sm_state = VS_SM_FILL;
                 goto again;
                 break;
