@@ -99,8 +99,8 @@ enum vs_sm_state {
 #define VS_ERR_GPIO_IRQ     0x204
 #define VS_ERR_WRONG_VS_VER 0x205
 
-#define VS_NON_BLOCKING     0x0
-#define VS_BLOCKING         0x1
+#define WAIT_FOR_DREQ       0x0
+#define NO_WAIT_FOR_DREQ    0x1
 
 typedef struct {
     int fd;

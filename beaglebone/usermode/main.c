@@ -43,14 +43,14 @@ static void print_usage(const char *prog)
 
 void print_vs_registers()
 {
-    printf("SCI_MODE         0x%x\n", vs_read_register(SCI_MODE, VS_BLOCKING));
-    printf("SCI_STATUS       0x%x\n", vs_read_register(SCI_STATUS, VS_BLOCKING));
-    printf("SCI_CLOCKF       0x%x\n", vs_read_register(SCI_CLOCKF, VS_BLOCKING));
-    printf("SCI_DECODE_TIME  0x%x\n", vs_read_register(SCI_DECODE_TIME, VS_BLOCKING));
-    printf("SCI_AUDATA       0x%x\n", vs_read_register(SCI_AUDATA, VS_BLOCKING));
-    printf("SCI_HDAT0        0x%x\n", vs_read_register(SCI_HDAT0, VS_BLOCKING));
-    printf("SCI_HDAT1        0x%x\n", vs_read_register(SCI_HDAT1, VS_BLOCKING));
-    printf("SCI_VOL          0x%x\n", vs_read_register(SCI_VOL, VS_BLOCKING));
+    printf("SCI_MODE         0x%x\n", vs_read_register(SCI_MODE, WAIT_FOR_DREQ));
+    printf("SCI_STATUS       0x%x\n", vs_read_register(SCI_STATUS, WAIT_FOR_DREQ));
+    printf("SCI_CLOCKF       0x%x\n", vs_read_register(SCI_CLOCKF, WAIT_FOR_DREQ));
+    printf("SCI_DECODE_TIME  0x%x\n", vs_read_register(SCI_DECODE_TIME, WAIT_FOR_DREQ));
+    printf("SCI_AUDATA       0x%x\n", vs_read_register(SCI_AUDATA, WAIT_FOR_DREQ));
+    printf("SCI_HDAT0        0x%x\n", vs_read_register(SCI_HDAT0, WAIT_FOR_DREQ));
+    printf("SCI_HDAT1        0x%x\n", vs_read_register(SCI_HDAT1, WAIT_FOR_DREQ));
+    printf("SCI_VOL          0x%x\n", vs_read_register(SCI_VOL, WAIT_FOR_DREQ));
 
     printf("DREQ state       0x%x\n", vs_get_dreq());
 }

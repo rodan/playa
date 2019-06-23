@@ -68,12 +68,12 @@ uint16_t vs_read_register(const uint8_t address, const uint8_t flags)
     uint8_t tx[4] = { VS_READ_COMMAND, address, 0xff, 0xff };
     uint8_t rx[4] = { 0, 0, 0, 0 };
 
-    if (flags == VS_BLOCKING) {
+    if (flags == WAIT_FOR_DREQ) {
         vs_wait(VS_DREQ_TMOUT);
     }
     spi_transfer(rx, tx, 4, spidev_fd_xCS, &tr_xCS);
     rv = rx[2] << 8 | rx[3];
-    if (flags == VS_BLOCKING) {
+    if (flags == WAIT_FOR_DREQ) {
         vs_wait(VS_DREQ_TMOUT);
     }
     return rv;
@@ -85,11 +85,11 @@ void vs_write_register_hl(const uint8_t address, const uint8_t highbyte, const u
 {
     uint8_t tx[4] = { VS_WRITE_COMMAND, address, highbyte, lowbyte };
     uint8_t rx[4] = { 0, 0, 0, 0 };
-    if (flags == VS_BLOCKING) {
+    if (flags == WAIT_FOR_DREQ) {
         vs_wait(VS_DREQ_TMOUT);
     }
     spi_transfer(rx, tx, 4, spidev_fd_xCS, &tr_xCS);
-    if (flags == VS_BLOCKING) {
+    if (flags == WAIT_FOR_DREQ) {
         vs_wait(VS_DREQ_TMOUT);
     }
 }
@@ -109,27 +109,27 @@ void vs_write_register(const uint8_t address, const uint16_t value, const uint8_
 uint16_t vs_read_wramaddr(const uint16_t address)
 {
     uint16_t rv = 0;
-    vs_write_register(SCI_WRAMADDR, address, VS_BLOCKING);
-    rv = vs_read_register(SCI_WRAM, VS_BLOCKING);
+    vs_write_register(SCI_WRAMADDR, address, WAIT_FOR_DREQ);
+    rv = vs_read_register(SCI_WRAM, WAIT_FOR_DREQ);
     return rv;
 }
 
 // write to data rams
 void vs_write_wramaddr(const uint16_t address, const uint16_t value)
 {
-    vs_write_register(SCI_WRAMADDR, address, VS_BLOCKING);
-    vs_write_register(SCI_WRAM, value, VS_BLOCKING);
+    vs_write_register(SCI_WRAMADDR, address, WAIT_FOR_DREQ);
+    vs_write_register(SCI_WRAM, value, WAIT_FOR_DREQ);
 }
 
 uint8_t vs_xfer_test(uint16_t value1, uint16_t value2)
 {
     uint16_t ret_val1, ret_val2;
 
-    vs_write_register(SCI_AICTRL1, value1, VS_BLOCKING);
-    vs_write_register(SCI_AICTRL2, value2, VS_BLOCKING);
+    vs_write_register(SCI_AICTRL1, value1, WAIT_FOR_DREQ);
+    vs_write_register(SCI_AICTRL2, value2, WAIT_FOR_DREQ);
 
-    ret_val1 = vs_read_register(SCI_AICTRL1, VS_BLOCKING);
-    ret_val2 = vs_read_register(SCI_AICTRL2, VS_BLOCKING);
+    ret_val1 = vs_read_register(SCI_AICTRL1, WAIT_FOR_DREQ);
+    ret_val2 = vs_read_register(SCI_AICTRL2, WAIT_FOR_DREQ);
 
     if (ret_val1 != value1) {
         printf("%d != %d\n", ret_val1, value1);
@@ -140,11 +140,11 @@ uint8_t vs_xfer_test(uint16_t value1, uint16_t value2)
         return EXIT_FAILURE;
     }
 
-    vs_write_register(SCI_AICTRL1, 0, VS_BLOCKING);
-    vs_write_register(SCI_AICTRL2, 0, VS_BLOCKING);
+    vs_write_register(SCI_AICTRL1, 0, WAIT_FOR_DREQ);
+    vs_write_register(SCI_AICTRL2, 0, WAIT_FOR_DREQ);
 
-    ret_val1 = vs_read_register(SCI_AICTRL1, VS_BLOCKING);
-    ret_val2 = vs_read_register(SCI_AICTRL2, VS_BLOCKING);
+    ret_val1 = vs_read_register(SCI_AICTRL1, WAIT_FOR_DREQ);
+    ret_val2 = vs_read_register(SCI_AICTRL2, WAIT_FOR_DREQ);
 
     if (ret_val1 != 0) {
         return EXIT_FAILURE;
@@ -194,9 +194,9 @@ void vs_close()
 
 void vs_soft_reset(void)
 {
-    vs_write_register(SCI_MODE, SM_SDINEW | SM_RESET, VS_BLOCKING);
+    vs_write_register(SCI_MODE, SM_SDINEW | SM_RESET, WAIT_FOR_DREQ);
     usleep(2000);
-    vs_write_register(SCI_CLOCKF, 0xb000, VS_BLOCKING);
+    vs_write_register(SCI_CLOCKF, 0xb000, WAIT_FOR_DREQ);
     usleep(200);
 }
 
@@ -214,7 +214,7 @@ void vs_setup_i2s(void)
 void vs_set_volume(const uint8_t leftchannel, const uint8_t rightchannel)
 {
     // volume = dB/0.5
-    vs_write_register_hl(SCI_VOL, leftchannel, rightchannel, VS_BLOCKING);
+    vs_write_register_hl(SCI_VOL, leftchannel, rightchannel, WAIT_FOR_DREQ);
 }
 
 // returns 0 on success
@@ -227,14 +227,14 @@ uint16_t vs_end_play(void)
     if ((vs_stream.fd != -1) && (vs_sm_state == VS_REPLENISH_BUF)) {
         close(vs_stream.fd);
         vs_stream.fd = -1;
-        vs_write_register(SCI_MODE, SM_CANCEL, VS_BLOCKING);
+        vs_write_register(SCI_MODE, SM_CANCEL, WAIT_FOR_DREQ);
         if (vs_stream.fill_cnt) {
             vs_fill(vs_stream.fill_byte, vs_stream.fill_cnt);
         }
 
-        vs_write_register(SCI_MODE, SM_CANCEL, VS_BLOCKING);
+        vs_write_register(SCI_MODE, SM_CANCEL, WAIT_FOR_DREQ);
         vs_fill(vs_stream.fill_byte, 32);
-        while (vs_read_register(SCI_MODE, VS_BLOCKING) & SM_CANCEL) {
+        while (vs_read_register(SCI_MODE, WAIT_FOR_DREQ) & SM_CANCEL) {
             vs_fill(vs_stream.fill_byte, 32);
             i++;
             if (i == 64) {
@@ -244,7 +244,7 @@ uint16_t vs_end_play(void)
         }
         vs_sm_state = VS_SM_IDLE;
     }
-    rv = vs_read_register(SCI_HDAT1, VS_BLOCKING);
+    rv = vs_read_register(SCI_HDAT1, WAIT_FOR_DREQ);
     return rv;
 }
 
@@ -354,12 +354,12 @@ void vs_load_patch(void)
             n &= 0x7FFF;
             val = plugin[i++];
             while (n--) {
-                vs_write_register(addr, val, VS_BLOCKING);
+                vs_write_register(addr, val, WAIT_FOR_DREQ);
             }
         } else {                // Copy run, copy n samples
             while (n--) {
                 val = plugin[i++];
-                vs_write_register(addr, val, VS_BLOCKING);
+                vs_write_register(addr, val, WAIT_FOR_DREQ);
             }
         }
     }
@@ -397,21 +397,21 @@ int vs_init(void)
     sleep(1);
 
     // software reset, chip init
-    vs_write_register(SCI_MODE, SM_SDINEW | SM_RESET | SM_TESTS, VS_BLOCKING);
+    vs_write_register(SCI_MODE, SM_SDINEW | SM_RESET | SM_TESTS, WAIT_FOR_DREQ);
 
     // test SPI read/write
     if (vs_xfer_test(0xe1ac, 0x479b) != EXIT_SUCCESS) {
         return VS_ERR_SPI_XFER;
     }
     // check vlsi chip version
-    if (((vs_read_register(SCI_STATUS, VS_BLOCKING) >> 4) & 15) != 6) {
+    if (((vs_read_register(SCI_STATUS, WAIT_FOR_DREQ) >> 4) & 15) != 6) {
         return VS_ERR_WRONG_VS_VER;
     }
     // disable audio output
-    vs_write_register_hl(SCI_VOL, 0xff, 0xff, VS_BLOCKING);
+    vs_write_register_hl(SCI_VOL, 0xff, 0xff, WAIT_FOR_DREQ);
 
     // set vs clock
-    vs_write_register(SCI_CLOCKF, 0xb000, VS_BLOCKING);
+    vs_write_register(SCI_CLOCKF, 0xb000, WAIT_FOR_DREQ);
 
     // increase SPI speeds
     spi_set_speed(spidev_fd_xCS, &tr_xCS, 2000000);
@@ -422,20 +422,21 @@ int vs_init(void)
         return VS_ERR_SPI_XFER;
     }
     // Declick: Slow sample rate for slow analog part startup
-    vs_write_register_hl(SCI_AUDATA, 0, 10, VS_BLOCKING);       // 10Hz
+    vs_write_register_hl(SCI_AUDATA, 0, 10, WAIT_FOR_DREQ);       // 10Hz
     // Switch on the analog parts
-    vs_write_register_hl(SCI_AUDATA, 0xac, 0x45, VS_BLOCKING);  // 44100Hz, stereo
+    vs_write_register_hl(SCI_AUDATA, 0xac, 0x45, WAIT_FOR_DREQ);  // 44100Hz, stereo
 
     // AVDD is at least 3.3v, so select 1.65v reference to increase
     // the analog output swing
-    vs_write_register(SCI_STATUS, SS_REFERENCE_SEL, VS_BLOCKING);
+    vs_write_register(SCI_STATUS, SS_REFERENCE_SEL, WAIT_FOR_DREQ);
 
+	// check http://www.vlsi.fi/en/support/software/vs10xxpatches.html
     vs_load_patch();
 
     // set the default volume
-    vs_write_register_hl(SCI_VOL, vs_vol_l, vs_vol_r, VS_BLOCKING);
+    vs_write_register_hl(SCI_VOL, vs_vol_l, vs_vol_r, WAIT_FOR_DREQ);
 
-    // from this point onwards all SCI/SDI commands must be VS_NON_BLOCKING
+    // from this point onwards all SCI/SDI commands must be NO_WAIT_FOR_DREQ
     // and sent via vs_state_machine()
     rl = add_edge_callback(DREQ_GPIO, vs1063_handler);
     if (rl != 0) {
@@ -457,7 +458,7 @@ void vs_state_machine()
         printf("VS_SM_IDLE\n");
         break;
     case VS_RST_DECODE_TIME:
-        vs_write_register(SCI_DECODE_TIME, 0, VS_NON_BLOCKING);
+        vs_write_register(SCI_DECODE_TIME, 0, NO_WAIT_FOR_DREQ);
         vs_sm_state = VS_REPLENISH_BUF;
         break;
     case VS_REPLENISH_BUF:
@@ -554,28 +555,28 @@ void vs_state_machine()
         } else {
             vs_sm_state = VS_SM_GET_FILL_BYTE;
         }
-        vs_stream.file_type = vs_read_register(SCI_HDAT1, VS_NON_BLOCKING);
+        vs_stream.file_type = vs_read_register(SCI_HDAT1, NO_WAIT_FOR_DREQ);
         break;
     case VS_SM_GET_FILL_BYTE:
         // ignore the most-probably low DREQ and send the SCI commands
         vs_sm_state = VS_REPLENISH_BUF;
-        vs_write_register(SCI_WRAMADDR, PAR_END_FILL_BYTE, VS_NON_BLOCKING);
-        vs_stream.fill_byte = vs_read_register(SCI_WRAM, VS_NON_BLOCKING);
+        vs_write_register(SCI_WRAMADDR, PAR_END_FILL_BYTE, NO_WAIT_FOR_DREQ);
+        vs_stream.fill_byte = vs_read_register(SCI_WRAM, NO_WAIT_FOR_DREQ);
         break;
     case VS_SM_MODE_CANCEL:
         printf("VS_SM_MODE_CANCEL\n");
         vs_sm_state = VS_SM_CHECK_CANCEL;
         memset(vs_stream.buf, vs_stream.fill_byte, BUFF_SIZE);
-        vs_write_register(SCI_MODE, SM_SDINEW | SM_CANCEL, VS_NON_BLOCKING);
+        vs_write_register(SCI_MODE, SM_SDINEW | SM_CANCEL, NO_WAIT_FOR_DREQ);
         break;
     case VS_SM_CHECK_CANCEL:
         printf("VS_SM_CHECK_CANCEL\n");
         vs_sm_state = VS_SM_FILL_MNGR;
-        vs_stream.reg = vs_read_register(SCI_MODE, VS_NON_BLOCKING);
+        vs_stream.reg = vs_read_register(SCI_MODE, NO_WAIT_FOR_DREQ);
         break;
     case VS_SM_FILL_MNGR:
         printf("VS_SM_FILL_MNGR\n");
-        printf("reg is 0x%x\n", vs_stream.reg);
+        printf("SCI_MODE 0x%x\n", vs_stream.reg);
         if ((vs_stream.reg & SM_CANCEL) == 0) {
             if (vs_stream.fd != -1) {
                 close(vs_stream.fd);
